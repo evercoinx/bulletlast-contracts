@@ -1,0 +1,20 @@
+{
+    "extends": "@tsconfig/node20/tsconfig.json",
+    "compilerOptions": {
+        "allowJs": true,
+        "noEmit": true,
+        "resolveJsonModule": true,
+        "typeRoots": ["./types"]
+    },
+    "include": [
+        "scripts/**/*.ts",
+        "tasks/**/*.ts",
+        "test/**/*.ts",
+        "typechain-types/**/*.ts",
+        "types/**/*.ts",
+        "utils/**/*.ts",
+        ".eslintrc.js",
+        ".solcover.js",
+        "hardhat.config.ts"
+    ]
+}
