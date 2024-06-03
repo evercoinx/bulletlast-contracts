@@ -28,16 +28,9 @@ contract BulletLastPresale is
     mapping(address user => mapping(uint256 roundId => Vesting vesting)) public userVestings;
 
     modifier checkRoundId(uint256 roundId) {
-        require(roundId > 0 && roundId <= currentRoundId, "Invalid round id");
-        _;
-    }
-
-    modifier checkSaleState(uint256 roundId, uint256 amount) {
-        require(
-            block.timestamp >= rounds[roundId].startTime && block.timestamp <= rounds[roundId].endTime,
-            "Invalid time for buying"
-        );
-        require(amount > 0 && amount <= rounds[roundId].inSale, "Invalid sale amount");
+        if (roundId == 0 || roundId > currentRoundId) {
+            revert InvalidRoundId(roundId, currentRoundId);
+        }
         _;
     }
 
@@ -51,8 +44,12 @@ contract BulletLastPresale is
         OwnableUpgradeable.__Ownable_init(_msgSender());
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
 
-        require(priceFeed_ != address(0), "Zero aggregator address");
-        require(usdt_ != address(0), "Zero USDT address");
+        if (priceFeed_ == address(0)) {
+            revert ZeroPriceFeed();
+        }
+        if (usdt_ == address(0)) {
+            revert ZeroUSDT();
+        }
 
         priceFeed = AggregatorV3Interface(priceFeed_);
         usdt = IERC20(usdt_);
@@ -62,19 +59,29 @@ contract BulletLastPresale is
         uint256 startTime,
         uint256 endTime,
         uint256 price,
-        uint256 tokensToSell,
-        uint256 baseDecimals,
+        uint256 allocatedAmount,
+        uint256 tokenDecimals,
         uint256 vestingStartTime,
         uint256 vestingCliff,
         uint256 vestingPeriod,
-        uint256 enableBuyWithEther,
-        uint256 enableBuyWithUSDT
+        bool enableBuyWithEther,
+        bool enableBuyWithUSDT
     ) external onlyOwner {
-        require(startTime > block.timestamp && endTime > startTime, "Invalid time");
-        require(price > 0, "Zero price");
-        require(tokensToSell > 0, "Zero tokens to sell");
-        require(baseDecimals > 0, "Zero decimals for the token");
-        require(vestingStartTime >= endTime, "Unexpected vesting start");
+        if (startTime <= block.timestamp || endTime > startTime) {
+            revert InvalidTimePeriod(block.timestamp, startTime, endTime);
+        }
+        if (price == 0) {
+            revert ZeroPrice();
+        }
+        if (allocatedAmount == 0) {
+            revert ZeroTokensToSell();
+        }
+        if (tokenDecimals == 0) {
+            revert ZeroTokenDecimals();
+        }
+        if (vestingStartTime < endTime) {
+            revert InvalidVestingStartTime(vestingStartTime, endTime);
+        }
 
         currentRoundId++;
 
@@ -83,9 +90,9 @@ contract BulletLastPresale is
             startTime: startTime,
             endTime: endTime,
             price: price,
-            tokensToSell: tokensToSell,
-            baseDecimals: baseDecimals,
-            inSale: tokensToSell,
+            allocatedAmount: allocatedAmount,
+            tokenDecimals: tokenDecimals,
+            inSale: allocatedAmount,
             vestingStartTime: vestingStartTime,
             vestingCliff: vestingCliff,
             vestingPeriod: vestingPeriod,
@@ -93,7 +100,15 @@ contract BulletLastPresale is
             enableBuyWithUSDT: enableBuyWithUSDT
         });
 
-        emit RoundCreated(currentRoundId, tokensToSell, startTime, endTime, enableBuyWithEther, enableBuyWithUSDT);
+        emit RoundCreated(
+            currentRoundId,
+            startTime,
+            endTime,
+            price,
+            allocatedAmount,
+            enableBuyWithEther,
+            enableBuyWithUSDT
+        );
     }
 
     function setSalePeriod(
@@ -101,83 +116,112 @@ contract BulletLastPresale is
         uint256 startTime,
         uint256 endTime
     ) external onlyOwner checkRoundId(roundId) {
-        require(startTime > 0 || endTime > 0, "Invalid parameters");
+        if (startTime == 0 && endTime == 0) {
+            revert ZeroStartAndEndTime();
+        }
 
+        Round storage currentRound = rounds[roundId];
         if (startTime > 0) {
-            require(block.timestamp < rounds[roundId].startTime, "Sale already started");
-            require(block.timestamp < startTime, "Sale time in past");
+            if (block.timestamp >= startTime) {
+                revert SaleInPast(block.timestamp, startTime);
+            }
+            if (block.timestamp >= currentRound.startTime) {
+                revert SaleAlreadyStarted(block.timestamp, currentRound.startTime);
+            }
 
-            uint256 prevValue = rounds[roundId].startTime;
-            rounds[roundId].startTime = startTime;
-            emit RoundUpdated(bytes32("START"), prevValue, startTime, block.timestamp);
+            currentRound.startTime = startTime;
+            emit RoundUpdated(bytes32("START"), currentRound.startTime, startTime, block.timestamp);
         }
 
         if (endTime > 0) {
-            require(block.timestamp < rounds[roundId].endTime, "Sale already ended");
-            require(endTime > rounds[roundId].startTime, "Invalid endTime");
+            if (block.timestamp >= endTime) {
+                revert SaleAlreadyEnded(block.timestamp, endTime);
+            }
+            if (endTime <= currentRound.startTime) {
+                revert InvalidSaleEndTime(endTime, currentRound.startTime);
+            }
 
-            uint256 prevValue = rounds[roundId].endTime;
-            rounds[roundId].endTime = endTime;
-            emit RoundUpdated(bytes32("END"), prevValue, endTime, block.timestamp);
+            currentRound.endTime = endTime;
+            emit RoundUpdated(bytes32("END"), currentRound.endTime, endTime, block.timestamp);
         }
     }
 
     function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external onlyOwner checkRoundId(roundId) {
-        require(vestingStartTime >= rounds[roundId].endTime, "Unexpected vesting start");
+        Round storage currentRound = rounds[roundId];
+        if (vestingStartTime < currentRound.endTime) {
+            revert InvalidVestingStartTime(vestingStartTime, currentRound.endTime);
+        }
 
-        uint256 prevValue = rounds[roundId].vestingStartTime;
         rounds[roundId].vestingStartTime = vestingStartTime;
-        emit RoundUpdated(bytes32("VESTING_START_TIME"), prevValue, vestingStartTime, block.timestamp);
+        emit RoundUpdated(
+            bytes32("VESTING_START_TIME"),
+            currentRound.vestingStartTime,
+            vestingStartTime,
+            block.timestamp
+        );
     }
 
     function setSaleToken(uint256 roundId, address saleToken) external onlyOwner checkRoundId(roundId) {
-        require(saleToken != address(0), "Zero token address");
+        if (saleToken == address(0)) {
+            revert ZeroSaleToken();
+        }
 
-        address prevValue = rounds[roundId].saleToken;
+        Round storage currentRound = rounds[roundId];
         rounds[roundId].saleToken = saleToken;
-        emit RoundTokenAddressUpdated(prevValue, saleToken, block.timestamp);
+        emit RoundTokenAddressUpdated(currentRound.saleToken, saleToken, block.timestamp);
     }
 
     function setPrice(uint256 roundId, uint256 price) external onlyOwner checkRoundId(roundId) {
-        require(price > 0, "Zero price");
-        require(rounds[roundId].startTime > block.timestamp, "Sale already started");
+        if (price == 0) {
+            revert ZeroPrice();
+        }
+
+        Round storage currentRound = rounds[roundId];
+        if (currentRound.startTime <= block.timestamp) {
+            revert SaleAlreadyStarted(block.timestamp, currentRound.startTime);
+        }
 
         rounds[roundId].price = price;
         emit RoundUpdated(bytes32("PRICE"), rounds[roundId].price, price, block.timestamp);
     }
 
-    function setEnableBuyWithEther(
-        uint256 roundId,
-        uint256 enableBuyWithEther
-    ) external onlyOwner checkRoundId(roundId) {
-        rounds[roundId].enableBuyWithEther = enableBuyWithEther;
+    function setEnableBuyWithEther(uint256 roundId, bool enableBuyWithEther) external onlyOwner checkRoundId(roundId) {
+        Round storage currentRound = rounds[roundId];
+        currentRound.enableBuyWithEther = enableBuyWithEther;
+
         emit RoundUpdated(
             bytes32("ENABLE_BUY_WITH_ETH"),
-            rounds[roundId].enableBuyWithEther,
-            enableBuyWithEther,
+            _toUint256(currentRound.enableBuyWithEther),
+            _toUint256(enableBuyWithEther),
             block.timestamp
         );
     }
 
-    function setEnableBuyWithUSDT(uint256 roundId, uint256 enableBuyWithUSDT) external onlyOwner checkRoundId(roundId) {
-        rounds[roundId].enableBuyWithUSDT = enableBuyWithUSDT;
+    function setEnableBuyWithUSDT(uint256 roundId, bool enableBuyWithUSDT) external onlyOwner checkRoundId(roundId) {
+        Round storage currentRound = rounds[roundId];
+        currentRound.enableBuyWithUSDT = enableBuyWithUSDT;
+
         emit RoundUpdated(
             bytes32("ENABLE_BUY_WITH_USDT"),
-            rounds[roundId].enableBuyWithUSDT,
-            enableBuyWithUSDT,
+            _toUint256(currentRound.enableBuyWithUSDT),
+            _toUint256(enableBuyWithUSDT),
             block.timestamp
         );
     }
 
     function pauseRound(uint256 roundId) external onlyOwner checkRoundId(roundId) {
-        require(!pausedRounds[roundId], "Already paused");
+        if (pausedRounds[roundId]) {
+            revert RoundAlreadyPaused(roundId);
+        }
 
         pausedRounds[roundId] = true;
         emit RoundPaused(roundId, block.timestamp);
     }
 
     function unpauseRound(uint256 roundId) external onlyOwner checkRoundId(roundId) {
-        require(pausedRounds[roundId], "Not paused");
+        if (!pausedRounds[roundId]) {
+            revert RoundNotPaused(roundId);
+        }
 
         pausedRounds[roundId] = false;
         emit RoundUnpaused(roundId, block.timestamp);
@@ -186,57 +230,68 @@ contract BulletLastPresale is
     function buyWithEther(
         uint256 roundId,
         uint256 amount
-    ) external payable checkRoundId(roundId) checkSaleState(roundId, amount) nonReentrant returns (bool) {
-        require(!pausedRounds[roundId], "Round paused");
-        require(rounds[roundId].enableBuyWithEther > 0, "Not allowed to buy with ETH");
+    ) external payable nonReentrant checkRoundId(roundId) returns (bool) {
+        if (pausedRounds[roundId]) {
+            revert RoundAlreadyPaused(roundId);
+        }
+
+        Round storage currentRound = rounds[roundId];
+        if (!currentRound.enableBuyWithEther) {
+            revert BuyWithEtherForbidden(roundId);
+        }
+        _checkSale(currentRound, amount);
 
         uint256 usdPrice = amount * rounds[roundId].price;
-        uint256 ethAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
-        require(msg.value >= ethAmount, "Less payment");
+        uint256 etherAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
+        if (msg.value < etherAmount) {
+            revert InsufficientEtherAmount(msg.value, etherAmount);
+        }
 
-        uint256 excess = msg.value - ethAmount;
+        uint256 excess = msg.value - etherAmount;
         rounds[roundId].inSale -= amount;
-        Round memory currentRound = rounds[roundId];
 
-        if (userVestings[_msgSender()][roundId].totalAmount > 0) {
-            userVestings[_msgSender()][roundId].totalAmount += (amount * currentRound.baseDecimals);
+        Vesting storage userVesting = userVestings[_msgSender()][roundId];
+        if (userVesting.totalAmount > 0) {
+            userVesting.totalAmount += (amount * currentRound.tokenDecimals);
         } else {
             userVestings[_msgSender()][roundId] = Vesting(
-                (amount * currentRound.baseDecimals),
+                (amount * currentRound.tokenDecimals),
                 0,
                 currentRound.vestingStartTime + currentRound.vestingCliff,
                 currentRound.vestingStartTime + currentRound.vestingCliff + currentRound.vestingPeriod
             );
         }
 
-        _sendValue(payable(owner()), ethAmount);
+        _sendValue(payable(owner()), etherAmount);
         if (excess > 0) {
             _sendValue(payable(_msgSender()), excess);
         }
 
-        emit TokensBought(_msgSender(), roundId, address(0), amount, ethAmount, block.timestamp);
+        emit TokensBought(_msgSender(), roundId, address(0), amount, etherAmount, block.timestamp);
         return true;
     }
 
-    function buyWithUSDT(
-        uint256 roundId,
-        uint256 amount
-    ) external checkRoundId(roundId) checkSaleState(roundId, amount) returns (bool) {
-        require(!pausedRounds[roundId], "Round paused");
-        require(rounds[roundId].enableBuyWithUSDT > 0, "Not allowed to buy with USDT");
+    function buyWithUSDT(uint256 roundId, uint256 amount) external nonReentrant checkRoundId(roundId) returns (bool) {
+        if (pausedRounds[roundId]) {
+            revert RoundAlreadyPaused(roundId);
+        }
+
+        Round storage currentRound = rounds[roundId];
+        if (!currentRound.enableBuyWithUSDT) {
+            revert BuyWithUSDTForbidden(roundId);
+        }
+        _checkSale(currentRound, amount);
 
         uint256 usdPrice = amount * rounds[roundId].price;
         usdPrice = usdPrice / (10 ** 12);
         rounds[roundId].inSale -= amount;
 
-        Round memory currentRound = rounds[roundId];
         Vesting storage userVesting = userVestings[_msgSender()][roundId];
-
         if (userVesting.totalAmount > 0) {
-            userVesting.totalAmount += (amount * currentRound.baseDecimals);
+            userVesting.totalAmount += (amount * currentRound.tokenDecimals);
         } else {
             userVestings[_msgSender()][roundId] = Vesting(
-                (amount * currentRound.baseDecimals),
+                (amount * currentRound.tokenDecimals),
                 0,
                 currentRound.vestingStartTime + currentRound.vestingCliff,
                 currentRound.vestingStartTime + currentRound.vestingCliff + currentRound.vestingPeriod
@@ -244,33 +299,36 @@ contract BulletLastPresale is
         }
 
         uint256 allowance = usdt.allowance(_msgSender(), address(this));
-        require(usdPrice <= allowance, "Insufficient USDT allowance");
+        if (usdPrice > allowance) {
+            revert InsufficientUSDTAllowance(allowance, usdPrice);
+        }
 
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = address(usdt).call(
             abi.encodeWithSignature("transferFrom(address,address,uint256)", _msgSender(), owner(), usdPrice)
         );
+        // solhint-disable-next-line custom-errors
         require(success, "Token payment failed");
 
         emit TokensBought(_msgSender(), roundId, address(usdt), amount, usdPrice, block.timestamp);
         return true;
     }
 
-    function claimMultiple(address[] calldata users, uint256 roundId) external returns (bool) {
-        require(users.length > 0, "Zero users length");
+    // function claimMultiple(address[] calldata users, uint256 roundId) external returns (bool) {
+    //     require(users.length > 0, "Zero users length");
 
-        for (uint256 i; i < users.length; i++) {
-            require(claim(users[i], roundId), "Claim failed");
-        }
-        return true;
-    }
+    //     for (uint256 i; i < users.length; i++) {
+    //         require(claim(users[i], roundId), "Claim failed");
+    //     }
+    //     return true;
+    // }
 
     function etherBuyHelper(
         uint256 roundId,
         uint256 amount
-    ) external view checkRoundId(roundId) returns (uint256 ethAmount) {
+    ) external view checkRoundId(roundId) returns (uint256 etherAmount) {
         uint256 usdPrice = amount * rounds[roundId].price;
-        ethAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
+        etherAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
     }
 
     function usdtBuyHelper(
@@ -283,12 +341,19 @@ contract BulletLastPresale is
 
     function claim(address user, uint256 roundId) public returns (bool) {
         uint256 amount = claimableAmount(user, roundId);
-        require(amount > 0, "Zero claim amount");
-        require(rounds[roundId].saleToken != address(0), "Round token address not set");
-        require(amount <= IERC20(rounds[roundId].saleToken).balanceOf(address(this)), "Not enough tokens in contract");
+        if (amount == 0) {
+            revert ZeroClaimAmount();
+        }
+
+        uint256 currentBalance = IERC20(rounds[roundId].saleToken).balanceOf(address(this));
+        if (amount > currentBalance) {
+            revert InsufficientCurrentBalance(amount, currentBalance);
+        }
 
         userVestings[user][roundId].claimedAmount += amount;
+
         bool status = IERC20(rounds[roundId].saleToken).transfer(user, amount);
+        // solhint-disable-next-line custom-errors
         require(status, "Token transfer failed");
 
         emit TokensClaimed(user, roundId, amount, block.timestamp);
@@ -296,22 +361,20 @@ contract BulletLastPresale is
     }
 
     function claimableAmount(address user, uint256 roundId) public view checkRoundId(roundId) returns (uint256) {
-        Vesting memory _user = userVestings[user][roundId];
-        require(_user.totalAmount > 0, "Nothing to claim");
+        Vesting memory userVesting = userVestings[user][roundId];
+        uint256 amount = userVesting.totalAmount - userVesting.claimedAmount;
 
-        uint256 amount = _user.totalAmount - _user.claimedAmount;
-        require(amount > 0, "Already claimed");
-
-        if (block.timestamp < _user.claimStart) {
+        if (block.timestamp < userVesting.claimStart) {
             return 0;
         }
-        if (block.timestamp >= _user.claimEnd) {
+        if (block.timestamp >= userVesting.claimEnd) {
             return amount;
         }
 
-        uint256 monthsPassed = (block.timestamp - _user.claimStart) / MONTH;
-        uint256 perMonthClaim = (_user.totalAmount * BASE_MULTIPLIER * MONTH) / (_user.claimEnd - _user.claimStart);
-        uint256 amountToClaim = ((monthsPassed * perMonthClaim) / BASE_MULTIPLIER) - _user.claimedAmount;
+        uint256 monthsPassed = (block.timestamp - userVesting.claimStart) / MONTH;
+        uint256 perMonthClaim = (userVesting.totalAmount * BASE_MULTIPLIER * MONTH) /
+            (userVesting.claimEnd - userVesting.claimStart);
+        uint256 amountToClaim = ((monthsPassed * perMonthClaim) / BASE_MULTIPLIER) - userVesting.claimedAmount;
 
         return amountToClaim;
     }
@@ -323,9 +386,29 @@ contract BulletLastPresale is
     }
 
     function _sendValue(address payable to, uint256 amount) private {
-        require(address(this).balance >= amount, "Low balance");
-        // slither-disable-next-line avoid-low-level-calls
+        if (address(this).balance >= amount) {
+            revert InsufficientCurrentBalance(amount, address(this).balance);
+        }
+
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = to.call{ value: amount }("");
+        // solhint-disable-next-line custom-errors
         require(success, "ETH Payment failed");
+    }
+
+    function _checkSale(Round storage round, uint256 amount) private view {
+        if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
+            revert InvalidBuyPeriod(block.timestamp, round.startTime, round.endTime);
+        }
+        if (amount == 0 || amount > round.inSale) {
+            revert InvalidSaleAmount(amount, round.inSale);
+        }
+    }
+
+    function _toUint256(bool b) private pure returns (uint256 n) {
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            n := b
+        }
     }
 }
