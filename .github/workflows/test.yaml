@@ -68,5 +68,6 @@ jobs:
             artifacts/contracts/
             !artifacts/contracts/**/*.dbg.json
             !artifacts/contracts/interfaces/
-            !artifacts/contracts/test/
+            !artifacts/contracts/libraries/
+            !artifacts/contracts/mocks/
           retention-days: 7

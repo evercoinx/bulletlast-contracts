@@ -36,7 +36,7 @@ const mining: HardhatNetworkMiningUserConfig = {
 
 const gasReporter = {
     coinmarketcap: envVars.COINMARKETCAP_API_KEY,
-    excludeContracts: ["@openzeppelin/", "interfaces/", "libraries/", "mocks/"],
+    excludeContracts: ["@chainlink/", "@openzeppelin/", "interfaces/", "libraries/", "mocks/"],
     ...(envVars.GAS_REPORTER_NETWORK === "polygon"
         ? {
               gasPriceApi: "https://api.etherscan.io/api?module=proxy&action=eth_gasPrice",
@@ -119,8 +119,8 @@ const config: HardhatUserConfig = {
         runOnCompile: false,
         disambiguatePaths: false,
         strict: true,
-        only: ["HeroToken", "HeroVestingManager", "HeroVestingWallet"],
-        except: ["@openzeppelin/", "interfaces/", "libraries/", "mocks/"],
+        only: ["BulletLast", "BulletLastPresale"],
+        except: ["@chainlink/", "@openzeppelin/", "interfaces/", "libraries/", "mocks/"],
     },
 };
 
