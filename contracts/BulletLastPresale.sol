@@ -19,25 +19,25 @@ contract BulletLastPresale is
     uint256 public constant BASE_MULTIPLIER = 10 ** 18;
     uint256 public constant MONTH = 30 days;
 
-    uint256 public presaleId;
+    uint256 public currentRoundId;
     AggregatorV3Interface public priceFeed;
     IERC20 public usdt;
 
-    mapping(uint256 presaleId => bool paused) public paused;
-    mapping(uint256 presaleId => Presale presale) public presale;
-    mapping(address user => mapping(uint256 presaleId => Vesting vesting)) public userVesting;
+    mapping(uint256 roundId => Round round) public rounds;
+    mapping(uint256 roundId => bool paused) public pausedRounds;
+    mapping(address user => mapping(uint256 roundId => Vesting vesting)) public userVestings;
 
-    modifier checkPresaleId(uint256 id) {
-        require(id > 0 && id <= presaleId, "Invalid presale id");
+    modifier checkRoundId(uint256 roundId) {
+        require(roundId > 0 && roundId <= currentRoundId, "Invalid round id");
         _;
     }
 
-    modifier checkSaleState(uint256 id, uint256 amount) {
+    modifier checkSaleState(uint256 roundId, uint256 amount) {
         require(
-            block.timestamp >= presale[id].startTime && block.timestamp <= presale[id].endTime,
+            block.timestamp >= rounds[roundId].startTime && block.timestamp <= rounds[roundId].endTime,
             "Invalid time for buying"
         );
-        require(amount > 0 && amount <= presale[id].inSale, "Invalid sale amount");
+        require(amount > 0 && amount <= rounds[roundId].inSale, "Invalid sale amount");
         _;
     }
 
@@ -58,7 +58,7 @@ contract BulletLastPresale is
         usdt = IERC20(usdt_);
     }
 
-    function createPresale(
+    function createRound(
         uint256 startTime,
         uint256 endTime,
         uint256 price,
@@ -76,9 +76,9 @@ contract BulletLastPresale is
         require(baseDecimals > 0, "Zero decimals for the token");
         require(vestingStartTime >= endTime, "Unexpected vesting start");
 
-        presaleId++;
+        currentRoundId++;
 
-        presale[presaleId] = Presale({
+        rounds[currentRoundId] = Round({
             saleToken: address(0),
             startTime: startTime,
             endTime: endTime,
@@ -93,132 +93,158 @@ contract BulletLastPresale is
             enableBuyWithUSDT: enableBuyWithUSDT
         });
 
-        emit PresaleCreated(presaleId, tokensToSell, startTime, endTime, enableBuyWithEther, enableBuyWithUSDT);
+        emit RoundCreated(currentRoundId, tokensToSell, startTime, endTime, enableBuyWithEther, enableBuyWithUSDT);
     }
 
-    function changeSaleTimes(uint256 id, uint256 startTime, uint256 endTime) external onlyOwner checkPresaleId(id) {
+    function setSalePeriod(
+        uint256 roundId,
+        uint256 startTime,
+        uint256 endTime
+    ) external onlyOwner checkRoundId(roundId) {
         require(startTime > 0 || endTime > 0, "Invalid parameters");
+
         if (startTime > 0) {
-            require(block.timestamp < presale[id].startTime, "Sale already started");
+            require(block.timestamp < rounds[roundId].startTime, "Sale already started");
             require(block.timestamp < startTime, "Sale time in past");
-            uint256 prevValue = presale[id].startTime;
-            presale[id].startTime = startTime;
-            emit PresaleUpdated(bytes32("START"), prevValue, startTime, block.timestamp);
+
+            uint256 prevValue = rounds[roundId].startTime;
+            rounds[roundId].startTime = startTime;
+            emit RoundUpdated(bytes32("START"), prevValue, startTime, block.timestamp);
         }
 
         if (endTime > 0) {
-            require(block.timestamp < presale[id].endTime, "Sale already ended");
-            require(endTime > presale[id].startTime, "Invalid endTime");
-            uint256 prevValue = presale[id].endTime;
-            presale[id].endTime = endTime;
-            emit PresaleUpdated(bytes32("END"), prevValue, endTime, block.timestamp);
+            require(block.timestamp < rounds[roundId].endTime, "Sale already ended");
+            require(endTime > rounds[roundId].startTime, "Invalid endTime");
+
+            uint256 prevValue = rounds[roundId].endTime;
+            rounds[roundId].endTime = endTime;
+            emit RoundUpdated(bytes32("END"), prevValue, endTime, block.timestamp);
         }
     }
 
-    function changeVestingStartTime(uint256 id, uint256 vestingStartTime) external onlyOwner checkPresaleId(id) {
-        require(vestingStartTime >= presale[id].endTime, "Unexpected vesting start");
-        uint256 prevValue = presale[id].vestingStartTime;
-        presale[id].vestingStartTime = vestingStartTime;
-        emit PresaleUpdated(bytes32("VESTING_START_TIME"), prevValue, vestingStartTime, block.timestamp);
+    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external onlyOwner checkRoundId(roundId) {
+        require(vestingStartTime >= rounds[roundId].endTime, "Unexpected vesting start");
+
+        uint256 prevValue = rounds[roundId].vestingStartTime;
+        rounds[roundId].vestingStartTime = vestingStartTime;
+        emit RoundUpdated(bytes32("VESTING_START_TIME"), prevValue, vestingStartTime, block.timestamp);
     }
 
-    function changeSaleTokenAddress(uint256 id, address _newAddress) external onlyOwner checkPresaleId(id) {
-        require(_newAddress != address(0), "Zero token address");
-        address prevValue = presale[id].saleToken;
-        presale[id].saleToken = _newAddress;
-        emit PresaleTokenAddressUpdated(prevValue, _newAddress, block.timestamp);
+    function setSaleToken(uint256 roundId, address saleToken) external onlyOwner checkRoundId(roundId) {
+        require(saleToken != address(0), "Zero token address");
+
+        address prevValue = rounds[roundId].saleToken;
+        rounds[roundId].saleToken = saleToken;
+        emit RoundTokenAddressUpdated(prevValue, saleToken, block.timestamp);
     }
 
-    function changePrice(uint256 id, uint256 _newPrice) external onlyOwner checkPresaleId(id) {
-        require(_newPrice > 0, "Zero price");
-        require(presale[id].startTime > block.timestamp, "Sale already started");
-        uint256 prevValue = presale[id].price;
-        presale[id].price = _newPrice;
-        emit PresaleUpdated(bytes32("PRICE"), prevValue, _newPrice, block.timestamp);
+    function setPrice(uint256 roundId, uint256 price) external onlyOwner checkRoundId(roundId) {
+        require(price > 0, "Zero price");
+        require(rounds[roundId].startTime > block.timestamp, "Sale already started");
+
+        rounds[roundId].price = price;
+        emit RoundUpdated(bytes32("PRICE"), rounds[roundId].price, price, block.timestamp);
     }
 
-    function changeEnableBuyWithEther(uint256 id, uint256 enableToBuyWithEther) external onlyOwner checkPresaleId(id) {
-        uint256 prevValue = presale[id].enableBuyWithEther;
-        presale[id].enableBuyWithEther = enableToBuyWithEther;
-        emit PresaleUpdated(bytes32("ENABLE_BUY_WITH_ETH"), prevValue, enableToBuyWithEther, block.timestamp);
+    function setEnableBuyWithEther(
+        uint256 roundId,
+        uint256 enableBuyWithEther
+    ) external onlyOwner checkRoundId(roundId) {
+        rounds[roundId].enableBuyWithEther = enableBuyWithEther;
+        emit RoundUpdated(
+            bytes32("ENABLE_BUY_WITH_ETH"),
+            rounds[roundId].enableBuyWithEther,
+            enableBuyWithEther,
+            block.timestamp
+        );
     }
 
-    function changeEnableBuyWithUSDT(uint256 id, uint256 enableToBuyWithUSDT) external onlyOwner checkPresaleId(id) {
-        uint256 prevValue = presale[id].enableBuyWithUSDT;
-        presale[id].enableBuyWithUSDT = enableToBuyWithUSDT;
-        emit PresaleUpdated(bytes32("ENABLE_BUY_WITH_USDT"), prevValue, enableToBuyWithUSDT, block.timestamp);
+    function setEnableBuyWithUSDT(uint256 roundId, uint256 enableBuyWithUSDT) external onlyOwner checkRoundId(roundId) {
+        rounds[roundId].enableBuyWithUSDT = enableBuyWithUSDT;
+        emit RoundUpdated(
+            bytes32("ENABLE_BUY_WITH_USDT"),
+            rounds[roundId].enableBuyWithUSDT,
+            enableBuyWithUSDT,
+            block.timestamp
+        );
     }
 
-    function pausePresale(uint256 id) external onlyOwner checkPresaleId(id) {
-        require(!paused[id], "Already paused");
-        paused[id] = true;
-        emit PresalePaused(id, block.timestamp);
+    function pauseRound(uint256 roundId) external onlyOwner checkRoundId(roundId) {
+        require(!pausedRounds[roundId], "Already paused");
+
+        pausedRounds[roundId] = true;
+        emit RoundPaused(roundId, block.timestamp);
     }
 
-    function unpausePresale(uint256 id) external onlyOwner checkPresaleId(id) {
-        require(paused[id], "Not paused");
-        paused[id] = false;
-        emit PresaleUnpaused(id, block.timestamp);
+    function unpauseRound(uint256 roundId) external onlyOwner checkRoundId(roundId) {
+        require(pausedRounds[roundId], "Not paused");
+
+        pausedRounds[roundId] = false;
+        emit RoundUnpaused(roundId, block.timestamp);
     }
 
     function buyWithEther(
-        uint256 id,
+        uint256 roundId,
         uint256 amount
-    ) external payable checkPresaleId(id) checkSaleState(id, amount) nonReentrant returns (bool) {
-        require(!paused[id], "Presale paused");
-        require(presale[id].enableBuyWithEther > 0, "Not allowed to buy with ETH");
-        uint256 usdPrice = amount * presale[id].price;
+    ) external payable checkRoundId(roundId) checkSaleState(roundId, amount) nonReentrant returns (bool) {
+        require(!pausedRounds[roundId], "Round paused");
+        require(rounds[roundId].enableBuyWithEther > 0, "Not allowed to buy with ETH");
+
+        uint256 usdPrice = amount * rounds[roundId].price;
         uint256 ethAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
         require(msg.value >= ethAmount, "Less payment");
-        uint256 excess = msg.value - ethAmount;
-        presale[id].inSale -= amount;
-        Presale memory _presale = presale[id];
 
-        if (userVesting[_msgSender()][id].totalAmount > 0) {
-            userVesting[_msgSender()][id].totalAmount += (amount * _presale.baseDecimals);
+        uint256 excess = msg.value - ethAmount;
+        rounds[roundId].inSale -= amount;
+        Round memory currentRound = rounds[roundId];
+
+        if (userVestings[_msgSender()][roundId].totalAmount > 0) {
+            userVestings[_msgSender()][roundId].totalAmount += (amount * currentRound.baseDecimals);
         } else {
-            userVesting[_msgSender()][id] = Vesting(
-                (amount * _presale.baseDecimals),
+            userVestings[_msgSender()][roundId] = Vesting(
+                (amount * currentRound.baseDecimals),
                 0,
-                _presale.vestingStartTime + _presale.vestingCliff,
-                _presale.vestingStartTime + _presale.vestingCliff + _presale.vestingPeriod
+                currentRound.vestingStartTime + currentRound.vestingCliff,
+                currentRound.vestingStartTime + currentRound.vestingCliff + currentRound.vestingPeriod
             );
         }
 
         _sendValue(payable(owner()), ethAmount);
-
         if (excess > 0) {
             _sendValue(payable(_msgSender()), excess);
         }
-        emit TokensBought(_msgSender(), id, address(0), amount, ethAmount, block.timestamp);
+
+        emit TokensBought(_msgSender(), roundId, address(0), amount, ethAmount, block.timestamp);
         return true;
     }
 
     function buyWithUSDT(
-        uint256 id,
+        uint256 roundId,
         uint256 amount
-    ) external checkPresaleId(id) checkSaleState(id, amount) returns (bool) {
-        require(!paused[id], "Presale paused");
-        require(presale[id].enableBuyWithUSDT > 0, "Not allowed to buy with USDT");
-        uint256 usdPrice = amount * presale[id].price;
+    ) external checkRoundId(roundId) checkSaleState(roundId, amount) returns (bool) {
+        require(!pausedRounds[roundId], "Round paused");
+        require(rounds[roundId].enableBuyWithUSDT > 0, "Not allowed to buy with USDT");
+
+        uint256 usdPrice = amount * rounds[roundId].price;
         usdPrice = usdPrice / (10 ** 12);
-        presale[id].inSale -= amount;
+        rounds[roundId].inSale -= amount;
 
-        Presale memory _presale = presale[id];
+        Round memory currentRound = rounds[roundId];
+        Vesting storage userVesting = userVestings[_msgSender()][roundId];
 
-        if (userVesting[_msgSender()][id].totalAmount > 0) {
-            userVesting[_msgSender()][id].totalAmount += (amount * _presale.baseDecimals);
+        if (userVesting.totalAmount > 0) {
+            userVesting.totalAmount += (amount * currentRound.baseDecimals);
         } else {
-            userVesting[_msgSender()][id] = Vesting(
-                (amount * _presale.baseDecimals),
+            userVestings[_msgSender()][roundId] = Vesting(
+                (amount * currentRound.baseDecimals),
                 0,
-                _presale.vestingStartTime + _presale.vestingCliff,
-                _presale.vestingStartTime + _presale.vestingCliff + _presale.vestingPeriod
+                currentRound.vestingStartTime + currentRound.vestingCliff,
+                currentRound.vestingStartTime + currentRound.vestingCliff + currentRound.vestingPeriod
             );
         }
 
-        uint256 ourAllowance = usdt.allowance(_msgSender(), address(this));
-        require(usdPrice <= ourAllowance, "Insufficient USDT allowance");
+        uint256 allowance = usdt.allowance(_msgSender(), address(this));
+        require(usdPrice <= allowance, "Insufficient USDT allowance");
 
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = address(usdt).call(
@@ -226,43 +252,53 @@ contract BulletLastPresale is
         );
         require(success, "Token payment failed");
 
-        emit TokensBought(_msgSender(), id, address(usdt), amount, usdPrice, block.timestamp);
+        emit TokensBought(_msgSender(), roundId, address(usdt), amount, usdPrice, block.timestamp);
         return true;
     }
 
-    function claimMultiple(address[] calldata users, uint256 id) external returns (bool) {
+    function claimMultiple(address[] calldata users, uint256 roundId) external returns (bool) {
         require(users.length > 0, "Zero users length");
+
         for (uint256 i; i < users.length; i++) {
-            require(claim(users[i], id), "Claim failed");
+            require(claim(users[i], roundId), "Claim failed");
         }
         return true;
     }
 
-    function etherBuyHelper(uint256 id, uint256 amount) external view checkPresaleId(id) returns (uint256 ethAmount) {
-        uint256 usdPrice = amount * presale[id].price;
+    function etherBuyHelper(
+        uint256 roundId,
+        uint256 amount
+    ) external view checkRoundId(roundId) returns (uint256 ethAmount) {
+        uint256 usdPrice = amount * rounds[roundId].price;
         ethAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
     }
 
-    function usdtBuyHelper(uint256 id, uint256 amount) external view checkPresaleId(id) returns (uint256 usdPrice) {
-        usdPrice = amount * presale[id].price;
+    function usdtBuyHelper(
+        uint256 roundId,
+        uint256 amount
+    ) external view checkRoundId(roundId) returns (uint256 usdPrice) {
+        usdPrice = amount * rounds[roundId].price;
         usdPrice = usdPrice / (10 ** 12);
     }
 
-    function claim(address user, uint256 id) public returns (bool) {
-        uint256 amount = claimableAmount(user, id);
+    function claim(address user, uint256 roundId) public returns (bool) {
+        uint256 amount = claimableAmount(user, roundId);
         require(amount > 0, "Zero claim amount");
-        require(presale[id].saleToken != address(0), "Presale token address not set");
-        require(amount <= IERC20(presale[id].saleToken).balanceOf(address(this)), "Not enough tokens in contract");
-        userVesting[user][id].claimedAmount += amount;
-        bool status = IERC20(presale[id].saleToken).transfer(user, amount);
+        require(rounds[roundId].saleToken != address(0), "Round token address not set");
+        require(amount <= IERC20(rounds[roundId].saleToken).balanceOf(address(this)), "Not enough tokens in contract");
+
+        userVestings[user][roundId].claimedAmount += amount;
+        bool status = IERC20(rounds[roundId].saleToken).transfer(user, amount);
         require(status, "Token transfer failed");
-        emit TokensClaimed(user, id, amount, block.timestamp);
+
+        emit TokensClaimed(user, roundId, amount, block.timestamp);
         return true;
     }
 
-    function claimableAmount(address user, uint256 id) public view checkPresaleId(id) returns (uint256) {
-        Vesting memory _user = userVesting[user][id];
+    function claimableAmount(address user, uint256 roundId) public view checkRoundId(roundId) returns (uint256) {
+        Vesting memory _user = userVestings[user][roundId];
         require(_user.totalAmount > 0, "Nothing to claim");
+
         uint256 amount = _user.totalAmount - _user.claimedAmount;
         require(amount > 0, "Already claimed");
 
@@ -273,9 +309,9 @@ contract BulletLastPresale is
             return amount;
         }
 
-        uint256 noOfMonthsPassed = (block.timestamp - _user.claimStart) / MONTH;
+        uint256 monthsPassed = (block.timestamp - _user.claimStart) / MONTH;
         uint256 perMonthClaim = (_user.totalAmount * BASE_MULTIPLIER * MONTH) / (_user.claimEnd - _user.claimStart);
-        uint256 amountToClaim = ((noOfMonthsPassed * perMonthClaim) / BASE_MULTIPLIER) - _user.claimedAmount;
+        uint256 amountToClaim = ((monthsPassed * perMonthClaim) / BASE_MULTIPLIER) - _user.claimedAmount;
 
         return amountToClaim;
     }

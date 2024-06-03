@@ -2,7 +2,7 @@
 pragma solidity 0.8.22;
 
 interface IBulletLastPresale {
-    struct Presale {
+    struct Round {
         address saleToken;
         uint256 startTime;
         uint256 endTime;
@@ -24,8 +24,8 @@ interface IBulletLastPresale {
         uint256 claimEnd;
     }
 
-    event PresaleCreated(
-        uint256 indexed id,
+    event RoundCreated(
+        uint256 indexed roundId,
         uint256 totalTokens,
         uint256 startTime,
         uint256 endTime,
@@ -33,21 +33,63 @@ interface IBulletLastPresale {
         uint256 enableBuyWithUSDT
     );
 
-    event PresaleUpdated(bytes32 indexed key, uint256 prevValue, uint256 newValue, uint256 timestamp);
+    event RoundUpdated(bytes32 indexed key, uint256 prevValue, uint256 newValue, uint256 timestamp);
 
     event TokensBought(
         address indexed user,
-        uint256 indexed id,
+        uint256 indexed roundId,
         address indexed purchaseToken,
         uint256 tokensBought,
         uint256 amountPaid,
         uint256 timestamp
     );
 
-    event TokensClaimed(address indexed user, uint256 indexed id, uint256 amount, uint256 timestamp);
+    event TokensClaimed(address indexed user, uint256 indexed roundId, uint256 amount, uint256 timestamp);
 
-    event PresaleTokenAddressUpdated(address indexed prevValue, address indexed newValue, uint256 timestamp);
+    event RoundTokenAddressUpdated(address indexed prevValue, address indexed newValue, uint256 timestamp);
 
-    event PresalePaused(uint256 indexed id, uint256 timestamp);
-    event PresaleUnpaused(uint256 indexed id, uint256 timestamp);
+    event RoundPaused(uint256 indexed roundId, uint256 timestamp);
+
+    event RoundUnpaused(uint256 indexed roundId, uint256 timestamp);
+
+    function createRound(
+        uint256 startTime,
+        uint256 endTime,
+        uint256 price,
+        uint256 tokensToSell,
+        uint256 baseDecimals,
+        uint256 vestingStartTime,
+        uint256 vestingCliff,
+        uint256 vestingPeriod,
+        uint256 enableBuyWithEther,
+        uint256 enableBuyWithUSDT
+    ) external;
+
+    function setSalePeriod(uint256 roundId, uint256 startTime, uint256 endTime) external;
+
+    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external;
+
+    function setSaleToken(uint256 roundId, address saleToken) external;
+
+    function setPrice(uint256 roundId, uint256 price) external;
+
+    function setEnableBuyWithEther(uint256 roundId, uint256 enableBuyWithEther) external;
+
+    function setEnableBuyWithUSDT(uint256 roundId, uint256 enableBuyWithUSDT) external;
+
+    function pauseRound(uint256 roundId) external;
+
+    function unpauseRound(uint256 roundId) external;
+
+    function buyWithEther(uint256 roundId, uint256 amount) external payable returns (bool);
+
+    function buyWithUSDT(uint256 roundId, uint256 amount) external returns (bool);
+
+    function claimMultiple(address[] calldata users, uint256 roundId) external returns (bool);
+
+    function claim(address user, uint256 roundId) external returns (bool);
+
+    function claimableAmount(address user, uint256 roundId) external view returns (uint256);
+
+    function getLatestPrice() external view returns (uint256);
 }
