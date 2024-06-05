@@ -3,8 +3,9 @@ pragma solidity 0.8.22;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
@@ -13,11 +14,15 @@ import { IBulletLastPresale } from "./interfaces/IBulletLastPresale.sol";
 contract BulletLastPresale is
     Initializable,
     ContextUpgradeable,
-    OwnableUpgradeable,
+    AccessControlUpgradeable,
     ReentrancyGuardUpgradeable,
+    MulticallUpgradeable,
     IBulletLastPresale
 {
     using SafeERC20 for IERC20;
+
+    bytes32 public constant VERSION = "1.0.0";
+    bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
 
     uint256 public currentRoundId;
     IERC20 public saleToken;
@@ -48,8 +53,9 @@ contract BulletLastPresale is
 
     function initialize(address saleToken_, address etherPriceFeed_, address usdtToken_) external initializer {
         ContextUpgradeable.__Context_init();
-        OwnableUpgradeable.__Ownable_init(_msgSender());
+        AccessControlUpgradeable.__AccessControl_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
+        MulticallUpgradeable.__Multicall_init();
 
         if (saleToken_ == address(0)) {
             revert ZeroSaleToken();
@@ -65,6 +71,9 @@ contract BulletLastPresale is
             revert ZeroUSDTToken();
         }
         usdtToken = IERC20(usdtToken_);
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(ROUND_MANAGER_ROLE, _msgSender());
     }
 
     function createRound(
@@ -78,7 +87,7 @@ contract BulletLastPresale is
         uint256 vestingPeriod,
         bool enableBuyWithEther,
         bool enableBuyWithUSDT
-    ) external onlyOwner {
+    ) external onlyRole(ROUND_MANAGER_ROLE) {
         if (startTime <= block.timestamp || endTime > startTime) {
             revert InvalidTimePeriod(block.timestamp, startTime, endTime);
         }
@@ -125,7 +134,7 @@ contract BulletLastPresale is
         );
     }
 
-    function setSaleToken(address saleToken_) external onlyOwner {
+    function setSaleToken(address saleToken_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (saleToken_ == address(0)) {
             revert ZeroSaleToken();
         }
@@ -138,7 +147,7 @@ contract BulletLastPresale is
         uint256 roundId,
         uint256 startTime,
         uint256 endTime
-    ) external onlyOwner checkRoundId(roundId) {
+    ) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) {
         if (startTime == 0 && endTime == 0) {
             revert ZeroStartAndEndTime();
         }
@@ -169,13 +178,13 @@ contract BulletLastPresale is
         }
     }
 
-    function setPrice(uint256 roundId, uint256 price) external onlyOwner checkRoundId(roundId) {
+    function setPrice(uint256 roundId, uint256 price) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) {
         if (price == 0) {
             revert ZeroPrice();
         }
 
         Round storage currentRound = rounds[roundId];
-        if (currentRound.startTime <= block.timestamp) {
+        if (block.timestamp >= currentRound.startTime) {
             revert SaleAlreadyStarted(block.timestamp, currentRound.startTime);
         }
 
@@ -183,7 +192,10 @@ contract BulletLastPresale is
         emit RoundUpdated(bytes32("PRICE"), rounds[roundId].price, price);
     }
 
-    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external onlyOwner checkRoundId(roundId) {
+    function setVestingStartTime(
+        uint256 roundId,
+        uint256 vestingStartTime
+    ) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) {
         Round storage currentRound = rounds[roundId];
         if (vestingStartTime < currentRound.endTime) {
             revert InvalidVestingStartTime(vestingStartTime, currentRound.endTime);
@@ -193,7 +205,10 @@ contract BulletLastPresale is
         emit RoundUpdated(bytes32("VESTING_START_TIME"), currentRound.vestingStartTime, vestingStartTime);
     }
 
-    function setEnableBuyWithEther(uint256 roundId, bool enableBuyWithEther) external onlyOwner checkRoundId(roundId) {
+    function setEnableBuyWithEther(
+        uint256 roundId,
+        bool enableBuyWithEther
+    ) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) {
         Round storage currentRound = rounds[roundId];
         currentRound.enableBuyWithEther = enableBuyWithEther;
 
@@ -204,7 +219,10 @@ contract BulletLastPresale is
         );
     }
 
-    function setEnableBuyWithUSDT(uint256 roundId, bool enableBuyWithUSDT) external onlyOwner checkRoundId(roundId) {
+    function setEnableBuyWithUSDT(
+        uint256 roundId,
+        bool enableBuyWithUSDT
+    ) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) {
         Round storage currentRound = rounds[roundId];
         currentRound.enableBuyWithUSDT = enableBuyWithUSDT;
 
@@ -215,12 +233,14 @@ contract BulletLastPresale is
         );
     }
 
-    function pauseRound(uint256 roundId) external onlyOwner checkRoundId(roundId) whenNotPaused(roundId) {
+    function pauseRound(
+        uint256 roundId
+    ) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) whenNotPaused(roundId) {
         pausedRounds[roundId] = true;
         emit RoundPaused(roundId);
     }
 
-    function unpauseRound(uint256 roundId) external onlyOwner checkRoundId(roundId) {
+    function unpauseRound(uint256 roundId) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) {
         if (!pausedRounds[roundId]) {
             revert RoundNotPaused(roundId);
         }
@@ -259,7 +279,7 @@ contract BulletLastPresale is
             );
         }
 
-        _sendEther(owner(), etherAmount);
+        _sendEther(address(this), etherAmount);
 
         uint256 excesses = msg.value - etherAmount;
         if (excesses > 0) {
@@ -295,7 +315,7 @@ contract BulletLastPresale is
             );
         }
 
-        usdtToken.safeTransferFrom(_msgSender(), owner(), usdtAmount);
+        usdtToken.safeTransferFrom(_msgSender(), address(this), usdtAmount);
 
         emit SaleTokenWithUSDTBought(_msgSender(), roundId, address(usdtToken), amount, usdtAmount);
     }
