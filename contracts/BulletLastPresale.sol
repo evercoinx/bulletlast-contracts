@@ -92,7 +92,6 @@ contract BulletLastPresale is
             price: price,
             allocatedAmount: allocatedAmount,
             tokenDecimals: tokenDecimals,
-            inSale: allocatedAmount,
             vestingStartTime: vestingStartTime,
             vestingCliff: vestingCliff,
             vestingPeriod: vestingPeriod,
@@ -248,7 +247,7 @@ contract BulletLastPresale is
         }
 
         uint256 excess = msg.value - etherAmount;
-        rounds[roundId].inSale -= amount;
+        rounds[roundId].allocatedAmount -= amount;
 
         Vesting storage userVesting = userVestings[_msgSender()][roundId];
         if (userVesting.totalAmount > 0) {
@@ -284,7 +283,7 @@ contract BulletLastPresale is
 
         uint256 usdPrice = amount * rounds[roundId].price;
         usdPrice = usdPrice / (10 ** 12);
-        rounds[roundId].inSale -= amount;
+        rounds[roundId].allocatedAmount -= amount;
 
         Vesting storage userVesting = userVestings[_msgSender()][roundId];
         if (userVesting.totalAmount > 0) {
@@ -400,8 +399,8 @@ contract BulletLastPresale is
         if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
             revert InvalidBuyPeriod(block.timestamp, round.startTime, round.endTime);
         }
-        if (amount == 0 || amount > round.inSale) {
-            revert InvalidSaleAmount(amount, round.inSale);
+        if (amount == 0 || amount > round.allocatedAmount) {
+            revert InvalidSaleAmount(amount, round.allocatedAmount);
         }
     }
 

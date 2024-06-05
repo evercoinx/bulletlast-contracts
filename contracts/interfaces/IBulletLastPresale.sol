@@ -9,7 +9,6 @@ interface IBulletLastPresale {
         uint256 price;
         uint256 allocatedAmount;
         uint256 tokenDecimals;
-        uint256 inSale;
         uint256 vestingStartTime;
         uint256 vestingCliff;
         uint256 vestingPeriod;
@@ -75,7 +74,7 @@ interface IBulletLastPresale {
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 roundStartTime, uint256 roundEndTime);
 
-    error InvalidSaleAmount(uint256 amount, uint256 roundInSaleAmount);
+    error InvalidSaleAmount(uint256 amount, uint256 roundAllocatedAmount);
 
     error InvalidVestingStartTime(uint256 vestingStartTime, uint256 roundEndTime);
 
