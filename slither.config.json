@@ -1,5 +1,5 @@
 {
     "compile_force_framework": "hardhat",
     "detectors_to_exclude": "pragma,solc-version",
-    "filter_paths": "(@openzeppelin/|test/)"
+    "filter_paths": "(@chainlink/|@openzeppelin/|contracts/BulletLast.sol|mocks/)"
 }
