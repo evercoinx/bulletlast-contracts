@@ -22,7 +22,7 @@ contract BulletLastPresale is
     uint256 public currentRoundId;
     IERC20 public saleToken;
     AggregatorV3Interface public etherPriceFeed;
-    IERC20 public usdt;
+    IERC20 public usdtToken;
     mapping(uint256 roundId => Round round) public rounds;
     mapping(uint256 roundId => bool paused) public pausedRounds;
     mapping(address user => mapping(uint256 roundId => Vesting vesting)) public userVestings;
@@ -46,7 +46,7 @@ contract BulletLastPresale is
         _disableInitializers();
     }
 
-    function initialize(address saleToken_, address etherPriceFeed_, address usdt_) external initializer {
+    function initialize(address saleToken_, address etherPriceFeed_, address usdtToken_) external initializer {
         ContextUpgradeable.__Context_init();
         OwnableUpgradeable.__Ownable_init(_msgSender());
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
@@ -61,10 +61,10 @@ contract BulletLastPresale is
         }
         etherPriceFeed = AggregatorV3Interface(etherPriceFeed_);
 
-        if (usdt_ == address(0)) {
-            revert ZeroUSDT();
+        if (usdtToken_ == address(0)) {
+            revert ZeroUSDTToken();
         }
-        usdt = IERC20(usdt_);
+        usdtToken = IERC20(usdtToken_);
     }
 
     function createRound(
@@ -116,9 +116,22 @@ contract BulletLastPresale is
             endTime,
             price,
             allocatedAmount,
+            tokenDecimals,
+            vestingStartTime,
+            vestingCliff,
+            vestingPeriod,
             enableBuyWithEther,
             enableBuyWithUSDT
         );
+    }
+
+    function setSaleToken(address saleToken_) external onlyOwner {
+        if (saleToken_ == address(0)) {
+            revert ZeroSaleToken();
+        }
+
+        saleToken = saleToken;
+        emit SaleTokenSet(saleToken_);
     }
 
     function setSalePeriod(
@@ -140,7 +153,7 @@ contract BulletLastPresale is
             }
 
             currentRound.startTime = startTime;
-            emit RoundUpdated(bytes32("START"), currentRound.startTime, startTime);
+            emit RoundUpdated(bytes32("START_TIME"), currentRound.startTime, startTime);
         }
 
         if (endTime > 0) {
@@ -152,27 +165,8 @@ contract BulletLastPresale is
             }
 
             currentRound.endTime = endTime;
-            emit RoundUpdated(bytes32("END"), currentRound.endTime, endTime);
+            emit RoundUpdated(bytes32("END_TIME"), currentRound.endTime, endTime);
         }
-    }
-
-    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external onlyOwner checkRoundId(roundId) {
-        Round storage currentRound = rounds[roundId];
-        if (vestingStartTime < currentRound.endTime) {
-            revert InvalidVestingStartTime(vestingStartTime, currentRound.endTime);
-        }
-
-        rounds[roundId].vestingStartTime = vestingStartTime;
-        emit RoundUpdated(bytes32("VESTING_START_TIME"), currentRound.vestingStartTime, vestingStartTime);
-    }
-
-    function setSaleToken(address saleToken_) external onlyOwner {
-        if (saleToken_ == address(0)) {
-            revert ZeroSaleToken();
-        }
-
-        saleToken = saleToken;
-        emit SaleTokenSet(saleToken_);
     }
 
     function setPrice(uint256 roundId, uint256 price) external onlyOwner checkRoundId(roundId) {
@@ -189,12 +183,22 @@ contract BulletLastPresale is
         emit RoundUpdated(bytes32("PRICE"), rounds[roundId].price, price);
     }
 
+    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external onlyOwner checkRoundId(roundId) {
+        Round storage currentRound = rounds[roundId];
+        if (vestingStartTime < currentRound.endTime) {
+            revert InvalidVestingStartTime(vestingStartTime, currentRound.endTime);
+        }
+
+        rounds[roundId].vestingStartTime = vestingStartTime;
+        emit RoundUpdated(bytes32("VESTING_START_TIME"), currentRound.vestingStartTime, vestingStartTime);
+    }
+
     function setEnableBuyWithEther(uint256 roundId, bool enableBuyWithEther) external onlyOwner checkRoundId(roundId) {
         Round storage currentRound = rounds[roundId];
         currentRound.enableBuyWithEther = enableBuyWithEther;
 
         emit RoundUpdated(
-            bytes32("ENABLE_BUY_WITH_ETH"),
+            bytes32("ENABLE_BUY_WITH_ETHER"),
             _toUint256(currentRound.enableBuyWithEther),
             _toUint256(enableBuyWithEther)
         );
@@ -291,17 +295,13 @@ contract BulletLastPresale is
             );
         }
 
-        uint256 allowance = usdt.allowance(_msgSender(), address(this));
-        if (usdtAmount > allowance) {
-            revert InsufficientUSDTAllowance(allowance, usdtAmount);
-        }
-        usdt.safeTransferFrom(_msgSender(), owner(), usdtAmount);
+        usdtToken.safeTransferFrom(_msgSender(), owner(), usdtAmount);
 
-        emit SaleTokenWithUSDTBought(_msgSender(), roundId, address(usdt), amount, usdtAmount);
+        emit SaleTokenWithUSDTBought(_msgSender(), roundId, address(usdtToken), amount, usdtAmount);
     }
 
-    function claimSaleToken(address user, uint256 roundId) external {
-        uint256 amount = claimableSaleTokenAmount(user, roundId);
+    function claimSaleToken(uint256 roundId, address user) external nonReentrant {
+        uint256 amount = claimableSaleTokenAmount(roundId, user);
         if (amount == 0) {
             revert ZeroClaimAmount();
         }
@@ -314,12 +314,13 @@ contract BulletLastPresale is
         userVestings[user][roundId].claimedAmount += amount;
 
         saleToken.safeTransfer(user, amount);
+
         emit SaleTokenClaimed(user, roundId, amount);
     }
 
     function claimableSaleTokenAmount(
-        address user,
-        uint256 roundId
+        uint256 roundId,
+        address user
     ) public view checkRoundId(roundId) returns (uint256) {
         Vesting memory userVesting = userVestings[user][roundId];
         uint256 amount = userVesting.totalAmount - userVesting.claimedAmount;
@@ -331,11 +332,11 @@ contract BulletLastPresale is
             return amount;
         }
 
-        uint256 monthsPassed = (block.timestamp - userVesting.startTime) / 30 days;
-        uint256 perMonthClaim = (userVesting.totalAmount * 1 ether * 30 days) /
+        uint256 passedMonths = (block.timestamp - userVesting.startTime) / 30 days;
+        uint256 monthlyClaim = (userVesting.totalAmount * 1 ether * 30 days) /
             (userVesting.endTime - userVesting.startTime);
 
-        return ((monthsPassed * perMonthClaim) / 1 ether) - userVesting.claimedAmount;
+        return ((passedMonths * monthlyClaim) / 1 ether) - userVesting.claimedAmount;
     }
 
     function getLatestEtherPrice() public view returns (uint256) {

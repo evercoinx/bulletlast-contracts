@@ -28,6 +28,10 @@ interface IBulletLastPresale {
         uint256 endTime,
         uint256 price,
         uint256 allocatedAmount,
+        uint256 tokenDicimals,
+        uint256 vestingStartTime,
+        uint256 vestingCliff,
+        uint256 vestingPeriod,
         bool enableBuyWithEther,
         bool enableBuyWithUSDT
     );
@@ -62,7 +66,7 @@ interface IBulletLastPresale {
 
     error ZeroPriceFeed();
 
-    error ZeroUSDT();
+    error ZeroUSDTToken();
 
     error ZeroPrice();
 
@@ -102,8 +106,6 @@ interface IBulletLastPresale {
 
     error InsufficientEtherAmount(uint256 value, uint256 etherAmount);
 
-    error InsufficientUSDTAllowance(uint256 allowance, uint256 usdPrice);
-
     error InsufficientCurrentBalance(uint256 amount, uint256 currentBalance);
 
     error EtherTransferFailed(address to, uint256 amount);
@@ -125,9 +127,9 @@ interface IBulletLastPresale {
 
     function setSalePeriod(uint256 roundId, uint256 startTime, uint256 endTime) external;
 
-    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external;
-
     function setPrice(uint256 roundId, uint256 price) external;
+
+    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external;
 
     function setEnableBuyWithEther(uint256 roundId, bool enableBuyWithEther) external;
 
@@ -141,9 +143,9 @@ interface IBulletLastPresale {
 
     function buySaleTokenWithUSDT(uint256 roundId, uint256 amount) external;
 
-    function claimSaleToken(address user, uint256 roundId) external;
+    function claimSaleToken(uint256 roundId, address user) external;
 
-    function claimableSaleTokenAmount(address user, uint256 roundId) external view returns (uint256);
+    function claimableSaleTokenAmount(uint256 roundId, address user) external view returns (uint256);
 
     function getLatestEtherPrice() external view returns (uint256);
 }
