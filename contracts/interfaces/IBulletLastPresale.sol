@@ -18,8 +18,8 @@ interface IBulletLastPresale {
     struct Vesting {
         uint256 totalAmount;
         uint256 claimedAmount;
-        uint256 claimStart;
-        uint256 claimEnd;
+        uint256 startTime;
+        uint256 endTime;
     }
 
     event RoundCreated(
@@ -32,7 +32,7 @@ interface IBulletLastPresale {
         bool enableBuyWithUSDT
     );
 
-    event RoundUpdated(bytes32 indexed operation, uint256 prevValue, uint256 newValue, uint256 timestamp);
+    event RoundUpdated(bytes32 indexed operation, uint256 prevValue, uint256 newValue);
 
     event SaleTokenSet(address indexed saleToke);
 
@@ -52,11 +52,11 @@ interface IBulletLastPresale {
         uint256 saleTokenAmount
     );
 
-    event SaleTokenClaimed(address indexed user, uint256 indexed roundId, uint256 amount, uint256 timestamp);
+    event SaleTokenClaimed(address indexed user, uint256 indexed roundId, uint256 amount);
 
-    event RoundPaused(uint256 indexed roundId, uint256 timestamp);
+    event RoundPaused(uint256 indexed roundId);
 
-    event RoundUnpaused(uint256 indexed roundId, uint256 timestamp);
+    event RoundUnpaused(uint256 indexed roundId);
 
     error InvalidRoundId(uint256 roundId, uint256 currentRoundId);
 
