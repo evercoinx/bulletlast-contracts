@@ -7,6 +7,7 @@ import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/ac
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { BitMaps } from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import { IBulletLastPresale } from "./interfaces/IBulletLastPresale.sol";
@@ -20,17 +21,20 @@ contract BulletLastPresale is
     IBulletLastPresale
 {
     using SafeERC20 for IERC20;
+    using BitMaps for BitMaps.BitMap;
 
     bytes32 public constant VERSION = "1.0.0";
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
+
+    uint256 private constant _USDT_TOKEN_DECIMALS = 6;
 
     uint256 public currentRoundId;
     IERC20 public saleToken;
     AggregatorV3Interface public etherPriceFeed;
     IERC20 public usdtToken;
     mapping(uint256 roundId => Round round) public rounds;
-    mapping(uint256 roundId => bool paused) public pausedRounds;
     mapping(address user => mapping(uint256 roundId => Vesting vesting)) public userVestings;
+    BitMaps.BitMap private _pausedRounds;
 
     modifier checkRoundId(uint256 roundId) {
         if (roundId == 0 || roundId > currentRoundId) {
@@ -40,7 +44,7 @@ contract BulletLastPresale is
     }
 
     modifier whenNotPaused(uint256 roundId) {
-        if (pausedRounds[roundId]) {
+        if (_pausedRounds.get(roundId)) {
             revert RoundAlreadyPaused(roundId);
         }
         _;
@@ -81,7 +85,6 @@ contract BulletLastPresale is
         uint256 endTime,
         uint256 price,
         uint256 allocatedAmount,
-        uint256 tokenDecimals,
         uint256 vestingStartTime,
         uint256 vestingCliff,
         uint256 vestingPeriod,
@@ -95,10 +98,7 @@ contract BulletLastPresale is
             revert ZeroPrice();
         }
         if (allocatedAmount == 0) {
-            revert ZeroTokensToSell();
-        }
-        if (tokenDecimals == 0) {
-            revert ZeroTokenDecimals();
+            revert ZeroAllocatedAmount();
         }
         if (vestingStartTime < endTime) {
             revert InvalidVestingStartTime(vestingStartTime, endTime);
@@ -111,7 +111,6 @@ contract BulletLastPresale is
             endTime: endTime,
             price: price,
             allocatedAmount: allocatedAmount,
-            tokenDecimals: tokenDecimals,
             vestingStartTime: vestingStartTime,
             vestingCliff: vestingCliff,
             vestingPeriod: vestingPeriod,
@@ -125,7 +124,6 @@ contract BulletLastPresale is
             endTime,
             price,
             allocatedAmount,
-            tokenDecimals,
             vestingStartTime,
             vestingCliff,
             vestingPeriod,
@@ -236,16 +234,16 @@ contract BulletLastPresale is
     function pauseRound(
         uint256 roundId
     ) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) whenNotPaused(roundId) {
-        pausedRounds[roundId] = true;
+        _pausedRounds.set(roundId);
         emit RoundPaused(roundId);
     }
 
     function unpauseRound(uint256 roundId) external onlyRole(ROUND_MANAGER_ROLE) checkRoundId(roundId) {
-        if (!pausedRounds[roundId]) {
+        if (!_pausedRounds.get(roundId)) {
             revert RoundNotPaused(roundId);
         }
 
-        pausedRounds[roundId] = false;
+        _pausedRounds.unset(roundId);
         emit RoundUnpaused(roundId);
     }
 
@@ -261,23 +259,12 @@ contract BulletLastPresale is
 
         uint256 usdPrice = amount * rounds[roundId].price;
         uint256 etherAmount = (usdPrice * 1 ether) / getLatestEtherPrice();
-        if (msg.value < etherAmount) {
-            revert InsufficientEtherAmount(msg.value, etherAmount);
+        if (etherAmount > msg.value) {
+            revert InsufficientEtherAmount(etherAmount, msg.value);
         }
 
         rounds[roundId].allocatedAmount -= amount;
-
-        Vesting storage userVesting = userVestings[_msgSender()][roundId];
-        if (userVesting.totalAmount > 0) {
-            userVesting.totalAmount += (amount * currentRound.tokenDecimals);
-        } else {
-            userVestings[_msgSender()][roundId] = Vesting(
-                (amount * currentRound.tokenDecimals),
-                0,
-                currentRound.vestingStartTime + currentRound.vestingCliff,
-                currentRound.vestingStartTime + currentRound.vestingCliff + currentRound.vestingPeriod
-            );
-        }
+        _setUserVesting(roundId, currentRound, amount);
 
         _sendEther(address(this), etherAmount);
 
@@ -303,17 +290,7 @@ contract BulletLastPresale is
         uint256 usdtAmount = usdPrice / (10 ** 12);
         rounds[roundId].allocatedAmount -= amount;
 
-        Vesting storage userVesting = userVestings[_msgSender()][roundId];
-        if (userVesting.totalAmount > 0) {
-            userVesting.totalAmount += (amount * currentRound.tokenDecimals);
-        } else {
-            userVestings[_msgSender()][roundId] = Vesting(
-                (amount * currentRound.tokenDecimals),
-                0,
-                currentRound.vestingStartTime + currentRound.vestingCliff,
-                currentRound.vestingStartTime + currentRound.vestingCliff + currentRound.vestingPeriod
-            );
-        }
+        _setUserVesting(roundId, currentRound, amount);
 
         usdtToken.safeTransferFrom(_msgSender(), address(this), usdtAmount);
 
@@ -327,8 +304,8 @@ contract BulletLastPresale is
         }
 
         uint256 currentBalance = saleToken.balanceOf(address(this));
-        if (amount > currentBalance) {
-            revert InsufficientCurrentBalance(amount, currentBalance);
+        if (currentBalance < amount) {
+            revert InsufficientCurrentBalance(currentBalance, amount);
         }
 
         userVestings[user][roundId].claimedAmount += amount;
@@ -364,9 +341,24 @@ contract BulletLastPresale is
         return uint256((price * (10 ** 10)));
     }
 
+    function _setUserVesting(uint256 roundId, Round storage round, uint256 amount) private {
+        Vesting storage userVesting = userVestings[_msgSender()][roundId];
+        if (userVesting.totalAmount > 0) {
+            userVesting.totalAmount += (amount * _USDT_TOKEN_DECIMALS);
+        } else {
+            uint256 startTime = round.vestingStartTime + round.vestingCliff;
+            userVestings[_msgSender()][roundId] = Vesting({
+                totalAmount: amount * _USDT_TOKEN_DECIMALS,
+                claimedAmount: 0,
+                startTime: startTime,
+                endTime: startTime + round.vestingPeriod
+            });
+        }
+    }
+
     function _sendEther(address to, uint256 amount) private {
         if (address(this).balance >= amount) {
-            revert InsufficientCurrentBalance(amount, address(this).balance);
+            revert InsufficientCurrentBalance(address(this).balance, amount);
         }
 
         // solhint-disable-next-line avoid-low-level-calls

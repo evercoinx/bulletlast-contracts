@@ -7,7 +7,6 @@ interface IBulletLastPresale {
         uint256 endTime;
         uint256 price;
         uint256 allocatedAmount;
-        uint256 tokenDecimals;
         uint256 vestingStartTime;
         uint256 vestingCliff;
         uint256 vestingPeriod;
@@ -28,7 +27,6 @@ interface IBulletLastPresale {
         uint256 endTime,
         uint256 price,
         uint256 allocatedAmount,
-        uint256 tokenDicimals,
         uint256 vestingStartTime,
         uint256 vestingCliff,
         uint256 vestingPeriod,
@@ -70,9 +68,7 @@ interface IBulletLastPresale {
 
     error ZeroPrice();
 
-    error ZeroTokensToSell();
-
-    error ZeroTokenDecimals();
+    error ZeroAllocatedAmount();
 
     error ZeroStartAndEndTime();
 
@@ -104,9 +100,9 @@ interface IBulletLastPresale {
 
     error BuyWithUSDTForbidden(uint256 roundId);
 
-    error InsufficientEtherAmount(uint256 value, uint256 etherAmount);
+    error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
-    error InsufficientCurrentBalance(uint256 amount, uint256 currentBalance);
+    error InsufficientCurrentBalance(uint256 currentBalance, uint256 amount);
 
     error EtherTransferFailed(address to, uint256 amount);
 
@@ -115,7 +111,6 @@ interface IBulletLastPresale {
         uint256 endTime,
         uint256 price,
         uint256 allocatedAmount,
-        uint256 tokenDecimals,
         uint256 vestingStartTime,
         uint256 vestingCliff,
         uint256 vestingPeriod,
