@@ -5,6 +5,7 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import { IBulletLastPresale } from "./interfaces/IBulletLastPresale.sol";
@@ -16,13 +17,15 @@ contract BulletLastPresale is
     ReentrancyGuardUpgradeable,
     IBulletLastPresale
 {
+    using SafeERC20 for IERC20;
+
     uint256 public constant BASE_MULTIPLIER = 10 ** 18;
     uint256 public constant MONTH = 30 days;
 
     uint256 public currentRoundId;
+    IERC20 public saleToken;
     AggregatorV3Interface public priceFeed;
     IERC20 public usdt;
-
     mapping(uint256 roundId => Round round) public rounds;
     mapping(uint256 roundId => bool paused) public pausedRounds;
     mapping(address user => mapping(uint256 roundId => Vesting vesting)) public userVestings;
@@ -39,19 +42,24 @@ contract BulletLastPresale is
         _disableInitializers();
     }
 
-    function initialize(address priceFeed_, address usdt_) external initializer {
+    function initialize(address saleToken_, address priceFeed_, address usdt_) external initializer {
         ContextUpgradeable.__Context_init();
         OwnableUpgradeable.__Ownable_init(_msgSender());
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
 
+        if (saleToken_ == address(0)) {
+            revert ZeroSaleToken();
+        }
+        saleToken = IERC20(saleToken_);
+
         if (priceFeed_ == address(0)) {
             revert ZeroPriceFeed();
         }
+        priceFeed = AggregatorV3Interface(priceFeed_);
+
         if (usdt_ == address(0)) {
             revert ZeroUSDT();
         }
-
-        priceFeed = AggregatorV3Interface(priceFeed_);
         usdt = IERC20(usdt_);
     }
 
@@ -86,7 +94,6 @@ contract BulletLastPresale is
         currentRoundId++;
 
         rounds[currentRoundId] = Round({
-            saleToken: address(0),
             startTime: startTime,
             endTime: endTime,
             price: price,
@@ -160,14 +167,13 @@ contract BulletLastPresale is
         );
     }
 
-    function setSaleToken(uint256 roundId, address saleToken) external onlyOwner checkRoundId(roundId) {
-        if (saleToken == address(0)) {
+    function setSaleToken(address saleToken_) external onlyOwner {
+        if (saleToken_ == address(0)) {
             revert ZeroSaleToken();
         }
 
-        Round storage currentRound = rounds[roundId];
-        rounds[roundId].saleToken = saleToken;
-        emit RoundTokenAddressUpdated(currentRound.saleToken, saleToken, block.timestamp);
+        saleToken = saleToken;
+        emit SaleTokenSet(saleToken_);
     }
 
     function setPrice(uint256 roundId, uint256 price) external onlyOwner checkRoundId(roundId) {
@@ -226,7 +232,7 @@ contract BulletLastPresale is
         emit RoundUnpaused(roundId, block.timestamp);
     }
 
-    function buyWithEther(
+    function buySaleTokenWithEther(
         uint256 roundId,
         uint256 amount
     ) external payable nonReentrant checkRoundId(roundId) returns (bool) {
@@ -266,11 +272,14 @@ contract BulletLastPresale is
             _sendValue(payable(_msgSender()), excess);
         }
 
-        emit TokensBought(_msgSender(), roundId, address(0), amount, etherAmount, block.timestamp);
+        emit SaleTokenWithEtherBought(_msgSender(), roundId, address(0), amount, etherAmount);
         return true;
     }
 
-    function buyWithUSDT(uint256 roundId, uint256 amount) external nonReentrant checkRoundId(roundId) returns (bool) {
+    function buySaleTokenWithUSDT(
+        uint256 roundId,
+        uint256 amount
+    ) external nonReentrant checkRoundId(roundId) returns (bool) {
         if (pausedRounds[roundId]) {
             revert RoundAlreadyPaused(roundId);
         }
@@ -282,7 +291,7 @@ contract BulletLastPresale is
         _checkSale(currentRound, amount);
 
         uint256 usdPrice = amount * rounds[roundId].price;
-        usdPrice = usdPrice / (10 ** 12);
+        uint256 usdtAmount = usdPrice / (10 ** 12);
         rounds[roundId].allocatedAmount -= amount;
 
         Vesting storage userVesting = userVestings[_msgSender()][roundId];
@@ -298,29 +307,14 @@ contract BulletLastPresale is
         }
 
         uint256 allowance = usdt.allowance(_msgSender(), address(this));
-        if (usdPrice > allowance) {
-            revert InsufficientUSDTAllowance(allowance, usdPrice);
+        if (usdtAmount > allowance) {
+            revert InsufficientUSDTAllowance(allowance, usdtAmount);
         }
+        usdt.safeTransferFrom(_msgSender(), owner(), usdtAmount);
 
-        // solhint-disable-next-line avoid-low-level-calls
-        (bool success, ) = address(usdt).call(
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", _msgSender(), owner(), usdPrice)
-        );
-        // solhint-disable-next-line custom-errors
-        require(success, "Token payment failed");
-
-        emit TokensBought(_msgSender(), roundId, address(usdt), amount, usdPrice, block.timestamp);
+        emit SaleTokenWithUSDTBought(_msgSender(), roundId, address(usdt), amount, usdtAmount);
         return true;
     }
-
-    // function claimMultiple(address[] calldata users, uint256 roundId) external returns (bool) {
-    //     require(users.length > 0, "Zero users length");
-
-    //     for (uint256 i; i < users.length; i++) {
-    //         require(claim(users[i], roundId), "Claim failed");
-    //     }
-    //     return true;
-    // }
 
     function etherBuyHelper(
         uint256 roundId,
@@ -338,25 +332,21 @@ contract BulletLastPresale is
         usdPrice = usdPrice / (10 ** 12);
     }
 
-    function claim(address user, uint256 roundId) public returns (bool) {
+    function claimSaleToken(address user, uint256 roundId) external {
         uint256 amount = claimableAmount(user, roundId);
         if (amount == 0) {
             revert ZeroClaimAmount();
         }
 
-        uint256 currentBalance = IERC20(rounds[roundId].saleToken).balanceOf(address(this));
+        uint256 currentBalance = saleToken.balanceOf(address(this));
         if (amount > currentBalance) {
             revert InsufficientCurrentBalance(amount, currentBalance);
         }
 
         userVestings[user][roundId].claimedAmount += amount;
 
-        bool status = IERC20(rounds[roundId].saleToken).transfer(user, amount);
-        // solhint-disable-next-line custom-errors
-        require(status, "Token transfer failed");
-
-        emit TokensClaimed(user, roundId, amount, block.timestamp);
-        return true;
+        saleToken.safeTransfer(user, amount);
+        emit SaleTokenClaimed(user, roundId, amount, block.timestamp);
     }
 
     function claimableAmount(address user, uint256 roundId) public view checkRoundId(roundId) returns (uint256) {

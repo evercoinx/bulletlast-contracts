@@ -3,7 +3,6 @@ pragma solidity 0.8.22;
 
 interface IBulletLastPresale {
     struct Round {
-        address saleToken;
         uint256 startTime;
         uint256 endTime;
         uint256 price;
@@ -35,18 +34,25 @@ interface IBulletLastPresale {
 
     event RoundUpdated(bytes32 indexed operation, uint256 prevValue, uint256 newValue, uint256 timestamp);
 
-    event TokensBought(
+    event SaleTokenSet(address indexed saleToke);
+
+    event SaleTokenWithEtherBought(
         address indexed user,
         uint256 indexed roundId,
         address indexed purchaseToken,
-        uint256 tokensBought,
-        uint256 amountPaid,
-        uint256 timestamp
+        uint256 purchaseTokenAmount,
+        uint256 saleTokenAmount
     );
 
-    event TokensClaimed(address indexed user, uint256 indexed roundId, uint256 amount, uint256 timestamp);
+    event SaleTokenWithUSDTBought(
+        address indexed user,
+        uint256 indexed roundId,
+        address indexed purchaseToken,
+        uint256 purchaseTokenAmount,
+        uint256 saleTokenAmount
+    );
 
-    event RoundTokenAddressUpdated(address indexed prevValue, address indexed newValue, uint256 timestamp);
+    event SaleTokenClaimed(address indexed user, uint256 indexed roundId, uint256 amount, uint256 timestamp);
 
     event RoundPaused(uint256 indexed roundId, uint256 timestamp);
 
@@ -113,11 +119,11 @@ interface IBulletLastPresale {
         bool enableBuyWithUSDT
     ) external;
 
+    function setSaleToken(address saleToken) external;
+
     function setSalePeriod(uint256 roundId, uint256 startTime, uint256 endTime) external;
 
     function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external;
-
-    function setSaleToken(uint256 roundId, address saleToken) external;
 
     function setPrice(uint256 roundId, uint256 price) external;
 
@@ -129,13 +135,11 @@ interface IBulletLastPresale {
 
     function unpauseRound(uint256 roundId) external;
 
-    function buyWithEther(uint256 roundId, uint256 amount) external payable returns (bool);
+    function buySaleTokenWithEther(uint256 roundId, uint256 amount) external payable returns (bool);
 
-    function buyWithUSDT(uint256 roundId, uint256 amount) external returns (bool);
+    function buySaleTokenWithUSDT(uint256 roundId, uint256 amount) external returns (bool);
 
-    // function claimMultiple(address[] calldata users, uint256 roundId) external returns (bool);
-
-    function claim(address user, uint256 roundId) external returns (bool);
+    function claimSaleToken(address user, uint256 roundId) external;
 
     function claimableAmount(address user, uint256 roundId) external view returns (uint256);
 
