@@ -106,6 +106,8 @@ interface IBulletLastPresale {
 
     error InsufficientCurrentBalance(uint256 amount, uint256 currentBalance);
 
+    error EtherTransferFailed(address to, uint256 amount);
+
     function createRound(
         uint256 startTime,
         uint256 endTime,
@@ -135,13 +137,13 @@ interface IBulletLastPresale {
 
     function unpauseRound(uint256 roundId) external;
 
-    function buySaleTokenWithEther(uint256 roundId, uint256 amount) external payable returns (bool);
+    function buySaleTokenWithEther(uint256 roundId, uint256 amount) external payable;
 
-    function buySaleTokenWithUSDT(uint256 roundId, uint256 amount) external returns (bool);
+    function buySaleTokenWithUSDT(uint256 roundId, uint256 amount) external;
 
     function claimSaleToken(address user, uint256 roundId) external;
 
-    function claimableAmount(address user, uint256 roundId) external view returns (uint256);
+    function claimableSaleTokenAmount(address user, uint256 roundId) external view returns (uint256);
 
-    function getLatestPrice() external view returns (uint256);
+    function getLatestEtherPrice() external view returns (uint256);
 }
