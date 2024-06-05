@@ -26,7 +26,7 @@ contract BulletLastPresale is
     bytes32 public constant VERSION = "1.0.0";
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
 
-    uint256 private constant _USDT_TOKEN_DECIMALS = 6;
+    uint8 private constant _USDT_TOKEN_DECIMALS = 6;
 
     uint256 public currentRoundId;
     IERC20 public saleToken;
