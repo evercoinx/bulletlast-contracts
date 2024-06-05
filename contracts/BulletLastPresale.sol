@@ -316,22 +316,6 @@ contract BulletLastPresale is
         return true;
     }
 
-    function etherBuyHelper(
-        uint256 roundId,
-        uint256 amount
-    ) external view checkRoundId(roundId) returns (uint256 etherAmount) {
-        uint256 usdPrice = amount * rounds[roundId].price;
-        etherAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
-    }
-
-    function usdtBuyHelper(
-        uint256 roundId,
-        uint256 amount
-    ) external view checkRoundId(roundId) returns (uint256 usdPrice) {
-        usdPrice = amount * rounds[roundId].price;
-        usdPrice = usdPrice / (10 ** 12);
-    }
-
     function claimSaleToken(address user, uint256 roundId) external {
         uint256 amount = claimableAmount(user, roundId);
         if (amount == 0) {
@@ -347,6 +331,22 @@ contract BulletLastPresale is
 
         saleToken.safeTransfer(user, amount);
         emit SaleTokenClaimed(user, roundId, amount, block.timestamp);
+    }
+
+    function etherBuyHelper(
+        uint256 roundId,
+        uint256 amount
+    ) external view checkRoundId(roundId) returns (uint256 etherAmount) {
+        uint256 usdPrice = amount * rounds[roundId].price;
+        etherAmount = (usdPrice * BASE_MULTIPLIER) / getLatestPrice();
+    }
+
+    function usdtBuyHelper(
+        uint256 roundId,
+        uint256 amount
+    ) external view checkRoundId(roundId) returns (uint256 usdPrice) {
+        usdPrice = amount * rounds[roundId].price;
+        usdPrice = usdPrice / (10 ** 12);
     }
 
     function claimableAmount(address user, uint256 roundId) public view checkRoundId(roundId) returns (uint256) {
