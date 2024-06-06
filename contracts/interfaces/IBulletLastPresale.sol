@@ -3,35 +3,25 @@ pragma solidity 0.8.22;
 
 interface IBulletLastPresale {
     struct Round {
-        uint256 id;
-        uint256 allocatedAmount;
+        uint16 id;
+        uint16 price;
         uint64 startTime;
         uint64 endTime;
-        uint64 price;
-        uint64 vestingStartTime;
-        uint64 vestingPeriod;
+        uint256 allocatedAmount;
     }
 
     struct Vesting {
         uint256 totalAmount;
         uint256 claimedAmount;
-        uint256 startTime;
-        uint256 endTime;
+        uint64 startTime;
+        uint64 endTime;
     }
 
     event ActiveRoundIdSet(uint256 indexed activeRoundId);
 
     event SaleTokenSet(address indexed saleToken);
 
-    event RoundCreated(
-        uint16 id,
-        uint16 price,
-        uint256 allocatedAmount,
-        uint64 startTime,
-        uint64 endTime,
-        uint64 vestingStartTime,
-        uint64 vestingPeriod
-    );
+    event RoundCreated(uint16 id, uint16 price, uint64 startTime, uint64 endTime, uint256 allocatedAmount);
 
     event SaleTokenWithEtherBought(
         address indexed user,
@@ -63,6 +53,8 @@ interface IBulletLastPresale {
 
     error ZeroClaimAmount();
 
+    error ZeroActiveRoundId();
+
     error NoActiveRoundFound();
 
     error ActiveRoundIdAlreadySet(uint256 activeRoundId);
@@ -83,15 +75,7 @@ interface IBulletLastPresale {
 
     function setActiveRoundId(uint16 activeRoundId) external;
 
-    function createRound(
-        uint16 id,
-        uint16 price,
-        uint256 allocatedAmount,
-        uint64 startTime,
-        uint64 endTime,
-        uint64 vestingStartTime,
-        uint64 vestingPeriod
-    ) external;
+    function createRound(uint16 id, uint16 price, uint256 allocatedAmount, uint64 startTime, uint64 endTime) external;
 
     function pause() external;
 

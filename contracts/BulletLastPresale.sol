@@ -25,7 +25,11 @@ contract BulletLastPresale is
 
     bytes32 public constant VERSION = "1.0.0";
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
+    uint64 public constant VESTING_DURATION = 30 days;
+    uint16 public constant MIN_USD_BUY = 100;
+    uint16 public constant MAX_USD_BUY = 1_000;
 
+    uint8 private constant _TOTAL_VESTING_CLIFFS = 4;
     uint8 private constant _USDT_TOKEN_DECIMALS = 6;
 
     uint16 public activeRoundId;
@@ -88,9 +92,7 @@ contract BulletLastPresale is
         uint16 price,
         uint256 allocatedAmount,
         uint64 startTime,
-        uint64 endTime,
-        uint64 vestingStartTime,
-        uint64 vestingPeriod
+        uint64 endTime
     ) external onlyRole(ROUND_MANAGER_ROLE) {
         if (startTime == 0 || endTime == 0 || endTime >= startTime) {
             revert InvalidTimePeriod(startTime, endTime);
@@ -101,21 +103,19 @@ contract BulletLastPresale is
         if (allocatedAmount == 0) {
             revert ZeroAllocatedAmount();
         }
-        if (vestingStartTime < endTime) {
-            revert InvalidVestingStartTime(vestingStartTime, endTime);
+        if (activeRoundId == 0) {
+            revert ZeroActiveRoundId();
         }
 
         rounds[activeRoundId] = Round({
             id: id,
-            allocatedAmount: allocatedAmount,
+            price: price,
             startTime: startTime,
             endTime: endTime,
-            price: price,
-            vestingStartTime: vestingStartTime,
-            vestingPeriod: vestingPeriod
+            allocatedAmount: allocatedAmount
         });
 
-        emit RoundCreated(activeRoundId, price, allocatedAmount, startTime, endTime, vestingStartTime, vestingPeriod);
+        emit RoundCreated(activeRoundId, price, startTime, endTime, allocatedAmount);
     }
 
     function buySaleTokenWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
@@ -130,8 +130,12 @@ contract BulletLastPresale is
 
         rounds[activeRound.id].allocatedAmount -= amount;
 
-        for (uint256 i = 0; i < 4; i++) {
-            _setUserVesting(activeRound, amount, i);
+        for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
+            _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
+
+            unchecked {
+                ++i;
+            }
         }
 
         _sendEther(address(this), etherAmount);
@@ -153,8 +157,12 @@ contract BulletLastPresale is
 
         activeRound.allocatedAmount -= amount;
 
-        for (uint256 i = 0; i < 4; i++) {
-            _setUserVesting(activeRound, amount, i);
+        for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
+            _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
+
+            unchecked {
+                ++i;
+            }
         }
 
         usdtToken.safeTransferFrom(_msgSender(), address(this), usdtAmount);
@@ -207,16 +215,16 @@ contract BulletLastPresale is
         return uint256((price * (10 ** 10)));
     }
 
-    function _setUserVesting(Round storage round, uint256 amount, uint256 cliff) private {
-        if (cliff > 0) {
+    function _setUserVesting(Round storage round, uint256 amount, uint8 cliffNumber) private {
+        if (cliffNumber > 0) {
             userVestings[_msgSender()][round.id].totalAmount += (amount * _USDT_TOKEN_DECIMALS);
         } else {
-            uint256 startTime = round.vestingStartTime + cliff * 30 days;
+            uint64 startTime = round.startTime + cliffNumber * VESTING_DURATION;
             userVestings[_msgSender()][round.id] = Vesting({
                 totalAmount: amount * _USDT_TOKEN_DECIMALS,
                 claimedAmount: 0,
                 startTime: startTime,
-                endTime: startTime + round.vestingPeriod
+                endTime: startTime + VESTING_DURATION
             });
         }
     }
