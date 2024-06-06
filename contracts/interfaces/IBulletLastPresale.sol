@@ -16,39 +16,39 @@ interface IBulletLastPresale {
         uint64 endTime;
     }
 
-    event ActiveRoundIdSet(uint256 indexed activeRoundId);
+    event TreasurySet(address indexed treasury);
 
-    event SaleTokenSet(address indexed saleToken);
+    event ActiveRoundIdSet(uint256 activeRoundId);
 
     event RoundCreated(uint16 id, uint16 price, uint64 startTime, uint64 endTime);
 
-    event SaleTokenWithEtherBought(
+    event BoughtWithEther(
         address indexed user,
         uint256 indexed roundId,
-        address indexed purchaseToken,
-        uint256 purchaseTokenAmount,
+        address indexed paidToken,
+        uint256 paidTokenAmount,
         uint256 saleTokenAmount
     );
 
-    event SaleTokenWithUSDTBought(
+    event BoughtWithUSDT(
         address indexed user,
         uint256 indexed roundId,
-        address indexed purchaseToken,
-        uint256 purchaseTokenAmount,
+        address indexed paidToken,
+        uint256 paidTokenAmount,
         uint256 saleTokenAmount
     );
 
-    event SaleTokenClaimed(address indexed user, uint256 indexed roundId, uint256 amount);
+    event Claimed(address indexed user, uint256 indexed roundId, uint256 amount);
+
+    error ZeroSaleToken();
 
     error ZeroPriceFeed();
 
     error ZeroUSDTToken();
 
+    error ZeroTreasury();
+
     error ZeroPrice();
-
-    error ZeroAllocatedAmount();
-
-    error ZeroSaleToken();
 
     error ZeroClaimAmount();
 
@@ -56,7 +56,7 @@ interface IBulletLastPresale {
 
     error ZeroActiveRoundId();
 
-    error NoActiveRoundFound();
+    error ActiveRoundNotFound();
 
     error ActiveRoundIdAlreadySet(uint256 activeRoundId);
 
@@ -70,13 +70,15 @@ interface IBulletLastPresale {
 
     error EtherTransferFailed(address to, uint256 amount);
 
-    function setActiveRoundId(uint16 activeRoundId) external;
-
-    function createRound(uint16 id, uint16 price, uint256 allocatedAmount, uint64 startTime, uint64 endTime) external;
-
     function pause() external;
 
     function unpause() external;
+
+    function setTreasury(address treasury) external;
+
+    function setActiveRoundId(uint16 activeRoundId) external;
+
+    function createRound(uint16 id, uint16 price, uint64 startTime, uint64 endTime) external;
 
     function buyWithEther(uint256 amount) external payable;
 

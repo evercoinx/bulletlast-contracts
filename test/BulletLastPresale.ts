@@ -8,7 +8,7 @@ describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
 
     async function deployFixture() {
-        const [deployer, executor, grantee, roundManager] = await ethers.getSigners();
+        const [deployer, executor, grantee, roundManager, treasury] = await ethers.getSigners();
 
         const BulletLast = await ethers.getContractFactory("BulletLast");
         const bulletLast = await BulletLast.deploy(deployer.address);
@@ -22,6 +22,7 @@ describe("BulletLastPresale", function () {
             bulletLastAddress,
             etherPriceFeedAddress,
             usdtTokenAddress,
+            treasury.address,
         ]);
         const bulletLastPresaleAddress = await bulletLastPresale.getAddress();
 
@@ -41,6 +42,7 @@ describe("BulletLastPresale", function () {
             executor,
             grantee,
             roundManager,
+            treasury,
             defaultAdminRole,
             roundManagerRole,
         };
@@ -49,7 +51,7 @@ describe("BulletLastPresale", function () {
     describe("Deploy the contract", function () {
         describe("Validations", function () {
             it("Should revert with the right error if passing the zero vesting token address", async function () {
-                const { bulletLastPresale, etherPriceFeedAddress, usdtTokenAddress } =
+                const { bulletLastPresale, etherPriceFeedAddress, usdtTokenAddress, treasury } =
                     await loadFixture(deployFixture);
 
                 const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
@@ -57,6 +59,7 @@ describe("BulletLastPresale", function () {
                     ethers.ZeroAddress,
                     etherPriceFeedAddress,
                     usdtTokenAddress,
+                    treasury.address,
                 ]);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroSaleToken")
@@ -95,8 +98,15 @@ describe("BulletLastPresale", function () {
             it("Should return the right sale token address", async function () {
                 const { bulletLastPresale, bulletLastAddress } = await loadFixture(deployFixture);
 
-                const currentSaleToken: string = await bulletLastPresale.saleToken();
-                expect(currentSaleToken).to.equal(bulletLastAddress);
+                const currentSaleTokenAddress: string = await bulletLastPresale.saleToken();
+                expect(currentSaleTokenAddress).to.equal(bulletLastAddress);
+            });
+
+            it("Should return the right treasury address", async function () {
+                const { bulletLastPresale, treasury } = await loadFixture(deployFixture);
+
+                const currentTreasuryAddress: string = await bulletLastPresale.treasury();
+                expect(currentTreasuryAddress).to.equal(treasury.address);
             });
         });
     });

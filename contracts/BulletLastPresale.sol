@@ -36,6 +36,7 @@ contract BulletLastPresale is
     IERC20 public saleToken;
     AggregatorV3Interface public etherPriceFeed;
     IERC20 public usdtToken;
+    address public treasury;
     mapping(uint256 roundId => Round round) public rounds;
     mapping(address user => mapping(uint256 roundId => Vesting vesting)) public userVestings;
 
@@ -44,7 +45,12 @@ contract BulletLastPresale is
         _disableInitializers();
     }
 
-    function initialize(address saleToken_, address etherPriceFeed_, address usdtToken_) external initializer {
+    function initialize(
+        address saleToken_,
+        address etherPriceFeed_,
+        address usdtToken_,
+        address treasury_
+    ) external initializer {
         ContextUpgradeable.__Context_init();
         AccessControlUpgradeable.__AccessControl_init();
         ReentrancyGuardUpgradeable.__ReentrancyGuard_init();
@@ -66,6 +72,11 @@ contract BulletLastPresale is
         }
         usdtToken = IERC20(usdtToken_);
 
+        if (treasury_ == address(0)) {
+            revert ZeroTreasury();
+        }
+        treasury = treasury_;
+
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ROUND_MANAGER_ROLE, _msgSender());
     }
@@ -76,6 +87,15 @@ contract BulletLastPresale is
 
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    function setTreasury(address treasury_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (treasury_ == address(0)) {
+            revert ZeroTreasury();
+        }
+
+        treasury = treasury_;
+        emit TreasurySet(treasury_);
     }
 
     function setActiveRoundId(uint16 activeRoundId_) external onlyRole(ROUND_MANAGER_ROLE) {
@@ -90,7 +110,6 @@ contract BulletLastPresale is
     function createRound(
         uint16 id,
         uint16 price,
-        uint256 allocatedAmount,
         uint64 startTime,
         uint64 endTime
     ) external onlyRole(ROUND_MANAGER_ROLE) {
@@ -100,15 +119,8 @@ contract BulletLastPresale is
         if (price == 0) {
             revert ZeroPrice();
         }
-        if (allocatedAmount == 0) {
-            revert ZeroAllocatedAmount();
-        }
-        if (activeRoundId == 0) {
-            revert ZeroActiveRoundId();
-        }
 
-        rounds[activeRoundId] = Round({ id: id, price: price, startTime: startTime, endTime: endTime });
-
+        rounds[id] = Round({ id: id, price: price, startTime: startTime, endTime: endTime });
         emit RoundCreated(activeRoundId, price, startTime, endTime);
     }
 
@@ -130,14 +142,14 @@ contract BulletLastPresale is
             }
         }
 
-        _sendEther(address(this), etherAmount);
+        _sendEther(treasury, etherAmount);
 
         uint256 excesses = msg.value - etherAmount;
         if (excesses > 0) {
             _sendEther(_msgSender(), excesses);
         }
 
-        emit SaleTokenWithEtherBought(_msgSender(), activeRound.id, address(0), amount, etherAmount);
+        emit BoughtWithEther(_msgSender(), activeRound.id, address(0), amount, etherAmount);
     }
 
     function buyWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
@@ -155,9 +167,9 @@ contract BulletLastPresale is
             }
         }
 
-        usdtToken.safeTransferFrom(_msgSender(), address(this), usdtAmount);
+        usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
 
-        emit SaleTokenWithUSDTBought(_msgSender(), activeRound.id, address(usdtToken), amount, usdtAmount);
+        emit BoughtWithUSDT(_msgSender(), activeRound.id, address(usdtToken), amount, usdtAmount);
     }
 
     function claim(address user, uint256 roundId) external nonReentrant whenNotPaused {
@@ -175,7 +187,7 @@ contract BulletLastPresale is
 
         saleToken.safeTransfer(user, amount);
 
-        emit SaleTokenClaimed(user, roundId, amount);
+        emit Claimed(user, roundId, amount);
     }
 
     function getActiveRound() external view returns (Round memory) {
@@ -234,7 +246,7 @@ contract BulletLastPresale is
     function _getActiveRound() private view returns (Round storage) {
         Round storage round = rounds[activeRoundId];
         if (round.startTime == 0) {
-            revert NoActiveRoundFound();
+            revert ActiveRoundNotFound();
         }
         return round;
     }
