@@ -107,18 +107,12 @@ contract BulletLastPresale is
             revert ZeroActiveRoundId();
         }
 
-        rounds[activeRoundId] = Round({
-            id: id,
-            price: price,
-            startTime: startTime,
-            endTime: endTime,
-            allocatedAmount: allocatedAmount
-        });
+        rounds[activeRoundId] = Round({ id: id, price: price, startTime: startTime, endTime: endTime });
 
-        emit RoundCreated(activeRoundId, price, startTime, endTime, allocatedAmount);
+        emit RoundCreated(activeRoundId, price, startTime, endTime);
     }
 
-    function buySaleTokenWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
+    function buyWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
         _checkSale(activeRound, amount);
 
@@ -127,8 +121,6 @@ contract BulletLastPresale is
         if (etherAmount > msg.value) {
             revert InsufficientEtherAmount(etherAmount, msg.value);
         }
-
-        rounds[activeRound.id].allocatedAmount -= amount;
 
         for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
             _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
@@ -148,14 +140,12 @@ contract BulletLastPresale is
         emit SaleTokenWithEtherBought(_msgSender(), activeRound.id, address(0), amount, etherAmount);
     }
 
-    function buySaleTokenWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
+    function buyWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
         _checkSale(activeRound, amount);
 
         uint256 usdPrice = amount * activeRound.price;
         uint256 usdtAmount = usdPrice / (10 ** 12);
-
-        activeRound.allocatedAmount -= amount;
 
         for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
             _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
@@ -170,8 +160,8 @@ contract BulletLastPresale is
         emit SaleTokenWithUSDTBought(_msgSender(), activeRound.id, address(usdtToken), amount, usdtAmount);
     }
 
-    function claimSaleToken(address user, uint256 roundId) external nonReentrant whenNotPaused {
-        uint256 amount = claimableSaleTokenAmount(user, roundId);
+    function claim(address user, uint256 roundId) external nonReentrant whenNotPaused {
+        uint256 amount = claimableAmount(user, roundId);
         if (amount == 0) {
             revert ZeroClaimAmount();
         }
@@ -192,13 +182,13 @@ contract BulletLastPresale is
         return _getActiveRound();
     }
 
-    function claimableSaleTokenAmount(address user, uint256 roundId) public view returns (uint256) {
+    function claimableAmount(address user, uint256 roundId) public view returns (uint256) {
         Vesting memory userVesting = userVestings[user][roundId];
-        uint256 amount = userVesting.totalAmount - userVesting.claimedAmount;
-
         if (block.timestamp < userVesting.startTime) {
             return 0;
         }
+
+        uint256 amount = userVesting.totalAmount - userVesting.claimedAmount;
         if (block.timestamp >= userVesting.endTime) {
             return amount;
         }
@@ -250,11 +240,11 @@ contract BulletLastPresale is
     }
 
     function _checkSale(Round storage round, uint256 amount) private view {
+        if (amount == 0) {
+            revert ZeroBuyAmount();
+        }
         if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
             revert InvalidBuyPeriod(block.timestamp, round.startTime, round.endTime);
-        }
-        if (amount == 0 || amount > round.allocatedAmount) {
-            revert InvalidSaleAmount(amount, round.allocatedAmount);
         }
     }
 

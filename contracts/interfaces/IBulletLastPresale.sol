@@ -7,7 +7,6 @@ interface IBulletLastPresale {
         uint16 price;
         uint64 startTime;
         uint64 endTime;
-        uint256 allocatedAmount;
     }
 
     struct Vesting {
@@ -21,7 +20,7 @@ interface IBulletLastPresale {
 
     event SaleTokenSet(address indexed saleToken);
 
-    event RoundCreated(uint16 id, uint16 price, uint64 startTime, uint64 endTime, uint256 allocatedAmount);
+    event RoundCreated(uint16 id, uint16 price, uint64 startTime, uint64 endTime);
 
     event SaleTokenWithEtherBought(
         address indexed user,
@@ -53,6 +52,8 @@ interface IBulletLastPresale {
 
     error ZeroClaimAmount();
 
+    error ZeroBuyAmount();
+
     error ZeroActiveRoundId();
 
     error NoActiveRoundFound();
@@ -62,10 +63,6 @@ interface IBulletLastPresale {
     error InvalidTimePeriod(uint256 startTime, uint256 endTime);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 roundStartTime, uint256 roundEndTime);
-
-    error InvalidSaleAmount(uint256 amount, uint256 roundAllocatedAmount);
-
-    error InvalidVestingStartTime(uint256 vestingStartTime, uint256 roundEndTime);
 
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
@@ -81,13 +78,13 @@ interface IBulletLastPresale {
 
     function unpause() external;
 
-    function buySaleTokenWithEther(uint256 amount) external payable;
+    function buyWithEther(uint256 amount) external payable;
 
-    function buySaleTokenWithUSDT(uint256 amount) external;
+    function buyWithUSDT(uint256 amount) external;
 
-    function claimSaleToken(address user, uint256 roundId) external;
+    function claim(address user, uint256 roundId) external;
 
-    function claimableSaleTokenAmount(address user, uint256 roundId) external view returns (uint256);
+    function claimableAmount(address user, uint256 roundId) external view returns (uint256);
 
     function getActiveRound() external view returns (Round memory);
 
