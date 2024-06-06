@@ -3,6 +3,7 @@ pragma solidity 0.8.22;
 
 interface IBulletLastPresale {
     struct Round {
+        uint256 id;
         uint256 startTime;
         uint256 endTime;
         uint256 price;
@@ -10,8 +11,6 @@ interface IBulletLastPresale {
         uint256 vestingStartTime;
         uint256 vestingCliff;
         uint256 vestingPeriod;
-        bool enableBuyWithEther;
-        bool enableBuyWithUSDT;
     }
 
     struct Vesting {
@@ -21,22 +20,20 @@ interface IBulletLastPresale {
         uint256 endTime;
     }
 
+    event ActiveRoundIdSet(uint256 indexed activeRoundId);
+
+    event SaleTokenSet(address indexed saleToken);
+
     event RoundCreated(
-        uint256 indexed roundId,
+        uint256 id,
         uint256 startTime,
         uint256 endTime,
         uint256 price,
         uint256 allocatedAmount,
         uint256 vestingStartTime,
         uint256 vestingCliff,
-        uint256 vestingPeriod,
-        bool enableBuyWithEther,
-        bool enableBuyWithUSDT
+        uint256 vestingPeriod
     );
-
-    event RoundUpdated(bytes32 indexed operation, uint256 prevValue, uint256 newValue);
-
-    event SaleTokenSet(address indexed saleToke);
 
     event SaleTokenWithEtherBought(
         address indexed user,
@@ -56,12 +53,6 @@ interface IBulletLastPresale {
 
     event SaleTokenClaimed(address indexed user, uint256 indexed roundId, uint256 amount);
 
-    event RoundPaused(uint256 indexed roundId);
-
-    event RoundUnpaused(uint256 indexed roundId);
-
-    error InvalidRoundId(uint256 roundId, uint256 currentRoundId);
-
     error ZeroPriceFeed();
 
     error ZeroUSDTToken();
@@ -70,13 +61,15 @@ interface IBulletLastPresale {
 
     error ZeroAllocatedAmount();
 
-    error ZeroStartAndEndTime();
-
     error ZeroSaleToken();
 
     error ZeroClaimAmount();
 
-    error InvalidTimePeriod(uint256 currentTime, uint256 roundStartTime, uint256 roundEndTime);
+    error NoActiveRoundFound();
+
+    error ActiveRoundIdAlreadySet(uint256 activeRoundId);
+
+    error InvalidTimePeriod(uint256 startTime, uint256 endTime);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 roundStartTime, uint256 roundEndTime);
 
@@ -84,63 +77,38 @@ interface IBulletLastPresale {
 
     error InvalidVestingStartTime(uint256 vestingStartTime, uint256 roundEndTime);
 
-    error SaleInPast(uint256 currentTime, uint256 startTime);
-
-    error SaleAlreadyStarted(uint256 currentTime, uint256 roundStartTime);
-
-    error InvalidSaleEndTime(uint256 endTime, uint256 roundStartTime);
-
-    error SaleAlreadyEnded(uint256 currentTime, uint256 roundEndTime);
-
-    error RoundAlreadyPaused(uint256 roundId);
-
-    error RoundNotPaused(uint256 roundId);
-
-    error BuyWithEtherForbidden(uint256 roundId);
-
-    error BuyWithUSDTForbidden(uint256 roundId);
-
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
     error InsufficientCurrentBalance(uint256 currentBalance, uint256 amount);
 
     error EtherTransferFailed(address to, uint256 amount);
 
+    function setActiveRoundId(uint256 activeRoundId) external;
+
     function createRound(
+        uint256 id,
         uint256 startTime,
         uint256 endTime,
         uint256 price,
         uint256 allocatedAmount,
         uint256 vestingStartTime,
         uint256 vestingCliff,
-        uint256 vestingPeriod,
-        bool enableBuyWithEther,
-        bool enableBuyWithUSDT
+        uint256 vestingPeriod
     ) external;
 
-    function setSaleToken(address saleToken) external;
+    function pause() external;
 
-    function setSalePeriod(uint256 roundId, uint256 startTime, uint256 endTime) external;
+    function unpause() external;
 
-    function setPrice(uint256 roundId, uint256 price) external;
+    function buySaleTokenWithEther(uint256 amount) external payable;
 
-    function setVestingStartTime(uint256 roundId, uint256 vestingStartTime) external;
-
-    function setEnableBuyWithEther(uint256 roundId, bool enableBuyWithEther) external;
-
-    function setEnableBuyWithUSDT(uint256 roundId, bool enableBuyWithUSDT) external;
-
-    function pauseRound(uint256 roundId) external;
-
-    function unpauseRound(uint256 roundId) external;
-
-    function buySaleTokenWithEther(uint256 roundId, uint256 amount) external payable;
-
-    function buySaleTokenWithUSDT(uint256 roundId, uint256 amount) external;
+    function buySaleTokenWithUSDT(uint256 amount) external;
 
     function claimSaleToken(uint256 roundId, address user) external;
 
     function claimableSaleTokenAmount(uint256 roundId, address user) external view returns (uint256);
+
+    function getActiveRound() external view returns (Round memory);
 
     function getLatestEtherPrice() external view returns (uint256);
 }

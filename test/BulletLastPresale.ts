@@ -7,7 +7,7 @@ import { generateRandomAddress } from "../utils/account";
 describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
 
-    async function deployBulletLastPresaleFixture() {
+    async function deployFixture() {
         const [deployer, executor, grantee, roundManager] = await ethers.getSigners();
 
         const BulletLast = await ethers.getContractFactory("BulletLast");
@@ -50,7 +50,7 @@ describe("BulletLastPresale", function () {
         describe("Validations", function () {
             it("Should revert with the right error if passing the zero vesting token address", async function () {
                 const { bulletLastPresale, etherPriceFeedAddress, usdtTokenAddress } =
-                    await loadFixture(deployBulletLastPresaleFixture);
+                    await loadFixture(deployFixture);
 
                 const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
                 const promise = upgrades.deployProxy(BulletLastPresale, [
@@ -66,16 +66,15 @@ describe("BulletLastPresale", function () {
 
         describe("Checks", function () {
             it("Should return the right version", async function () {
-                const { bulletLastPresale } = await loadFixture(deployBulletLastPresaleFixture);
+                const { bulletLastPresale } = await loadFixture(deployFixture);
 
                 const currentVersion: string = await bulletLastPresale.VERSION();
                 expect(currentVersion).to.equal(version);
             });
 
             it("Should return the default admin role set for the deployer", async function () {
-                const { bulletLastPresale, deployer, defaultAdminRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, deployer, defaultAdminRole } =
+                    await loadFixture(deployFixture);
 
                 const hasDefaultAdminRole: boolean = await bulletLastPresale.hasRole(
                     defaultAdminRole,
@@ -85,9 +84,8 @@ describe("BulletLastPresale", function () {
             });
 
             it("Should return the right admin role managing the  manager role", async function () {
-                const { bulletLastPresale, defaultAdminRole, roundManagerRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, defaultAdminRole, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 const currentAdminRole: string =
                     await bulletLastPresale.getRoleAdmin(roundManagerRole);
@@ -95,9 +93,7 @@ describe("BulletLastPresale", function () {
             });
 
             it("Should return the right sale token address", async function () {
-                const { bulletLastPresale, bulletLastAddress } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, bulletLastAddress } = await loadFixture(deployFixture);
 
                 const currentSaleToken: string = await bulletLastPresale.saleToken();
                 expect(currentSaleToken).to.equal(bulletLastAddress);
@@ -108,9 +104,7 @@ describe("BulletLastPresale", function () {
     describe("Upgrade the contract", function () {
         describe("Checks", function () {
             it("Should return a new address of the implementation if upgrading the contract", async function () {
-                const { bulletLastPresaleAddress } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresaleAddress } = await loadFixture(deployFixture);
 
                 const initialImplementationAddress =
                     await upgrades.erc1967.getImplementationAddress(bulletLastPresaleAddress);
@@ -125,9 +119,7 @@ describe("BulletLastPresale", function () {
             });
 
             it("Should return the same address of the implementation if not upgrading the contract", async function () {
-                const { bulletLastPresaleAddress } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresaleAddress } = await loadFixture(deployFixture);
 
                 const initialImplementationAddress =
                     await upgrades.erc1967.getImplementationAddress(bulletLastPresaleAddress);
@@ -145,9 +137,7 @@ describe("BulletLastPresale", function () {
     describe("Fallback", function () {
         describe("Validations", function () {
             it("Should revert without a reason if calling a non existing method", async function () {
-                const { bulletLastPresaleAddress, executor } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresaleAddress, executor } = await loadFixture(deployFixture);
                 const iface = new ethers.Interface(["function foo(uint256)"]);
 
                 const promise = executor.sendTransaction({
@@ -158,9 +148,7 @@ describe("BulletLastPresale", function () {
             });
 
             it("Should revert without a reason if sending arbitrary data", async function () {
-                const { bulletLastPresaleAddress, executor } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresaleAddress, executor } = await loadFixture(deployFixture);
 
                 const promise = executor.sendTransaction({
                     to: bulletLastPresaleAddress,
@@ -175,7 +163,7 @@ describe("BulletLastPresale", function () {
         describe("Validations", function () {
             it("Should revert with the right error if called by a non admin", async function () {
                 const { bulletLastPresale, grantee, defaultAdminRole, roundManagerRole } =
-                    await loadFixture(deployBulletLastPresaleFixture);
+                    await loadFixture(deployFixture);
 
                 const promise = (bulletLastPresale.connect(grantee) as BulletLastPresale).grantRole(
                     roundManagerRole,
@@ -193,7 +181,7 @@ describe("BulletLastPresale", function () {
         describe("Events", function () {
             it("Should emit the RoleGranted event for the package manager role", async function () {
                 const { bulletLastPresale, deployer, grantee, roundManagerRole } =
-                    await loadFixture(deployBulletLastPresaleFixture);
+                    await loadFixture(deployFixture);
 
                 const promise = bulletLastPresale.grantRole(roundManagerRole, grantee.address);
                 await expect(promise)
@@ -204,9 +192,8 @@ describe("BulletLastPresale", function () {
 
         describe("Checks", function () {
             it("Should return the right granted role state", async function () {
-                const { bulletLastPresale, grantee, roundManagerRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, grantee, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 await bulletLastPresale.grantRole(roundManagerRole, grantee.address);
 
@@ -223,7 +210,7 @@ describe("BulletLastPresale", function () {
         describe("Validations", function () {
             it("Should revert with the right error if called by a non admin", async function () {
                 const { bulletLastPresale, grantee, defaultAdminRole, roundManagerRole } =
-                    await loadFixture(deployBulletLastPresaleFixture);
+                    await loadFixture(deployFixture);
 
                 await bulletLastPresale.grantRole(roundManagerRole, grantee.address);
 
@@ -242,7 +229,7 @@ describe("BulletLastPresale", function () {
         describe("Events", function () {
             it("Should emit the RoleRevoked event", async function () {
                 const { bulletLastPresale, deployer, grantee, roundManagerRole } =
-                    await loadFixture(deployBulletLastPresaleFixture);
+                    await loadFixture(deployFixture);
 
                 await bulletLastPresale.grantRole(roundManagerRole, grantee.address);
 
@@ -253,9 +240,8 @@ describe("BulletLastPresale", function () {
             });
 
             it("Should skip emitting the RoleRevoked event without an upfront grant", async function () {
-                const { bulletLastPresale, grantee, roundManagerRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, grantee, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 const promise = bulletLastPresale.revokeRole(roundManagerRole, grantee.address);
                 await expect(promise).not.to.be.reverted;
@@ -264,9 +250,8 @@ describe("BulletLastPresale", function () {
 
         describe("Checks", function () {
             it("Should return the right revoked role state", async function () {
-                const { bulletLastPresale, grantee, roundManagerRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, grantee, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 await bulletLastPresale.grantRole(roundManagerRole, grantee.address);
                 await bulletLastPresale.revokeRole(roundManagerRole, grantee.address);
@@ -283,9 +268,8 @@ describe("BulletLastPresale", function () {
     describe("Renounce a role", function () {
         describe("Validations", function () {
             it("Should revert with the right error if called by a non grantee", async function () {
-                const { bulletLastPresale, grantee, roundManagerRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, grantee, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 await bulletLastPresale.grantRole(roundManagerRole, grantee.address);
 
@@ -301,9 +285,8 @@ describe("BulletLastPresale", function () {
 
         describe("Events", function () {
             it("Should emit the RoleRevoked event", async function () {
-                const { bulletLastPresale, grantee, roundManagerRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, grantee, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 await bulletLastPresale.grantRole(roundManagerRole, grantee.address);
 
@@ -318,9 +301,8 @@ describe("BulletLastPresale", function () {
 
         describe("Checks", function () {
             it("Should return the renounced role unset", async function () {
-                const { bulletLastPresale, grantee, roundManagerRole } = await loadFixture(
-                    deployBulletLastPresaleFixture
-                );
+                const { bulletLastPresale, grantee, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 await bulletLastPresale.grantRole(roundManagerRole, grantee.address);
                 await (bulletLastPresale.connect(grantee) as BulletLastPresale).renounceRole(
@@ -333,6 +315,123 @@ describe("BulletLastPresale", function () {
                     grantee.address
                 );
                 expect(hasRole).to.be.false;
+            });
+        });
+    });
+
+    describe("Pause the contract", function () {
+        describe("Validations", function () {
+            it("Should revert with the right error if called by a non admin", async function () {
+                const { bulletLastPresale, executor, defaultAdminRole } =
+                    await loadFixture(deployFixture);
+
+                const promise = (bulletLastPresale.connect(executor) as BulletLastPresale).pause();
+                await expect(promise)
+                    .to.be.revertedWithCustomError(
+                        bulletLastPresale,
+                        "AccessControlUnauthorizedAccount"
+                    )
+                    .withArgs(executor.address, defaultAdminRole);
+            });
+
+            it("Should revert with the right error if paused twice", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                await bulletLastPresale.pause();
+
+                const promise = bulletLastPresale.pause();
+                await expect(promise)
+                    .to.revertedWithCustomError(bulletLastPresale, "EnforcedPause")
+                    .withArgs();
+            });
+        });
+
+        describe("Events", function () {
+            it("Should emit the Paused event", async function () {
+                const { bulletLastPresale, deployer } = await loadFixture(deployFixture);
+
+                const promise = bulletLastPresale.pause();
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "Paused")
+                    .withArgs(deployer.address);
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right paused state", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                await bulletLastPresale.pause();
+
+                const paused = await bulletLastPresale.paused();
+                expect(paused).to.be.true;
+            });
+        });
+    });
+
+    describe("Unpause the contract", function () {
+        describe("Validations", function () {
+            it("Should revert with the right error if called by a non admin", async function () {
+                const { bulletLastPresale, executor, defaultAdminRole } =
+                    await loadFixture(deployFixture);
+
+                await bulletLastPresale.pause();
+
+                const promise = (
+                    bulletLastPresale.connect(executor) as BulletLastPresale
+                ).unpause();
+                await expect(promise)
+                    .to.be.revertedWithCustomError(
+                        bulletLastPresale,
+                        "AccessControlUnauthorizedAccount"
+                    )
+                    .withArgs(executor.address, defaultAdminRole);
+            });
+
+            it("Should revert with the right error if not paused earlier", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const promise = bulletLastPresale.unpause();
+                await expect(promise)
+                    .to.revertedWithCustomError(bulletLastPresale, "ExpectedPause")
+                    .withArgs();
+            });
+
+            it("Should revert with the right error if unpaused twice", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                await bulletLastPresale.pause();
+                await bulletLastPresale.unpause();
+
+                const promise = bulletLastPresale.unpause();
+                await expect(promise)
+                    .to.revertedWithCustomError(bulletLastPresale, "ExpectedPause")
+                    .withArgs();
+            });
+        });
+
+        describe("Events", function () {
+            it("Should emit the Unpaused event", async function () {
+                const { bulletLastPresale, deployer } = await loadFixture(deployFixture);
+
+                await bulletLastPresale.pause();
+
+                const promise = bulletLastPresale.unpause();
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "Unpaused")
+                    .withArgs(deployer.address);
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right paused state", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                await bulletLastPresale.pause();
+                await bulletLastPresale.unpause();
+
+                const paused = await bulletLastPresale.paused();
+                expect(paused).to.be.false;
             });
         });
     });
