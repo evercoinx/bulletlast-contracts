@@ -148,7 +148,7 @@ contract BulletLastPresale is
             _sendEther(_msgSender(), excesses);
         }
 
-        emit BoughtWithEther(_msgSender(), activeRound.id, address(0), amount, etherAmount);
+        emit BoughtWithEther(_msgSender(), activeRound.id, amount, etherAmount);
     }
 
     function buyWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
@@ -166,7 +166,7 @@ contract BulletLastPresale is
         uint256 usdtAmount = (amount * activeRound.price) / (10 ** 12);
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
 
-        emit BoughtWithUSDT(_msgSender(), activeRound.id, address(usdtToken), amount, usdtAmount);
+        emit BoughtWithUSDT(_msgSender(), activeRound.id, amount, usdtAmount);
     }
 
     function claim(address user, uint16 roundId) external nonReentrant whenNotPaused {

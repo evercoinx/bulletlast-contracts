@@ -22,21 +22,9 @@ interface IBulletLastPresale {
 
     event RoundCreated(uint16 id, uint64 startTime, uint64 endTime, uint256 price);
 
-    event BoughtWithEther(
-        address indexed user,
-        uint256 indexed roundId,
-        address indexed paidToken,
-        uint256 paidTokenAmount,
-        uint256 saleTokenAmount
-    );
+    event BoughtWithEther(address indexed user, uint256 indexed roundId, uint256 amount, uint256 etherAmount);
 
-    event BoughtWithUSDT(
-        address indexed user,
-        uint256 indexed roundId,
-        address indexed paidToken,
-        uint256 paidTokenAmount,
-        uint256 saleTokenAmount
-    );
+    event BoughtWithUSDT(address indexed user, uint256 indexed roundId, uint256 amount, uint256 usdtAmount);
 
     event Claimed(address indexed user, uint256 indexed roundId, uint256 amount);
 
