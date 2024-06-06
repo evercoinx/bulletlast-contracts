@@ -4,9 +4,9 @@ pragma solidity 0.8.22;
 interface IBulletLastPresale {
     struct Round {
         uint16 id;
-        uint16 price;
         uint64 startTime;
         uint64 endTime;
+        uint256 price;
     }
 
     struct Vesting {
@@ -20,7 +20,7 @@ interface IBulletLastPresale {
 
     event ActiveRoundIdSet(uint256 activeRoundId);
 
-    event RoundCreated(uint16 id, uint16 price, uint64 startTime, uint64 endTime);
+    event RoundCreated(uint16 id, uint64 startTime, uint64 endTime, uint256 price);
 
     event BoughtWithEther(
         address indexed user,
@@ -62,7 +62,7 @@ interface IBulletLastPresale {
 
     error InvalidTimePeriod(uint256 startTime, uint256 endTime);
 
-    error InvalidBuyPeriod(uint256 currentTime, uint256 roundStartTime, uint256 roundEndTime);
+    error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
 
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
@@ -78,15 +78,15 @@ interface IBulletLastPresale {
 
     function setActiveRoundId(uint16 activeRoundId) external;
 
-    function createRound(uint16 id, uint16 price, uint64 startTime, uint64 endTime) external;
+    function createRound(uint16 id, uint64 startTime, uint64 endTime, uint256 price) external;
 
     function buyWithEther(uint256 amount) external payable;
 
     function buyWithUSDT(uint256 amount) external;
 
-    function claim(address user, uint256 roundId) external;
+    function claim(address user, uint16 roundId) external;
 
-    function claimableAmount(address user, uint256 roundId) external view returns (uint256);
+    function claimableAmount(address user, uint16 roundId) external view returns (uint256);
 
     function getActiveRound() external view returns (Round memory);
 

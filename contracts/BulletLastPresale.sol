@@ -109,9 +109,9 @@ contract BulletLastPresale is
 
     function createRound(
         uint16 id,
-        uint16 price,
         uint64 startTime,
-        uint64 endTime
+        uint64 endTime,
+        uint256 price
     ) external onlyRole(ROUND_MANAGER_ROLE) {
         if (startTime == 0 || endTime == 0 || endTime >= startTime) {
             revert InvalidTimePeriod(startTime, endTime);
@@ -120,19 +120,13 @@ contract BulletLastPresale is
             revert ZeroPrice();
         }
 
-        rounds[id] = Round({ id: id, price: price, startTime: startTime, endTime: endTime });
-        emit RoundCreated(activeRoundId, price, startTime, endTime);
+        rounds[id] = Round({ id: id, startTime: startTime, endTime: endTime, price: price });
+        emit RoundCreated(activeRoundId, startTime, endTime, price);
     }
 
     function buyWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
         _checkSale(activeRound, amount);
-
-        uint256 usdPrice = amount * rounds[activeRound.id].price;
-        uint256 etherAmount = (usdPrice * 1 ether) / getLatestEtherPrice();
-        if (etherAmount > msg.value) {
-            revert InsufficientEtherAmount(etherAmount, msg.value);
-        }
 
         for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
             _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
@@ -140,6 +134,11 @@ contract BulletLastPresale is
             unchecked {
                 ++i;
             }
+        }
+
+        uint256 etherAmount = (amount * activeRound.price * 1 ether) / getLatestEtherPrice();
+        if (etherAmount > msg.value) {
+            revert InsufficientEtherAmount(etherAmount, msg.value);
         }
 
         _sendEther(treasury, etherAmount);
@@ -156,9 +155,6 @@ contract BulletLastPresale is
         Round storage activeRound = _getActiveRound();
         _checkSale(activeRound, amount);
 
-        uint256 usdPrice = amount * activeRound.price;
-        uint256 usdtAmount = usdPrice / (10 ** 12);
-
         for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
             _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
 
@@ -167,12 +163,13 @@ contract BulletLastPresale is
             }
         }
 
+        uint256 usdtAmount = (amount * activeRound.price) / (10 ** 12);
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
 
         emit BoughtWithUSDT(_msgSender(), activeRound.id, address(usdtToken), amount, usdtAmount);
     }
 
-    function claim(address user, uint256 roundId) external nonReentrant whenNotPaused {
+    function claim(address user, uint16 roundId) external nonReentrant whenNotPaused {
         uint256 amount = claimableAmount(user, roundId);
         if (amount == 0) {
             revert ZeroClaimAmount();
@@ -194,7 +191,7 @@ contract BulletLastPresale is
         return _getActiveRound();
     }
 
-    function claimableAmount(address user, uint256 roundId) public view returns (uint256) {
+    function claimableAmount(address user, uint16 roundId) public view returns (uint256) {
         Vesting memory userVesting = userVestings[user][roundId];
         if (block.timestamp < userVesting.startTime) {
             return 0;
@@ -232,10 +229,6 @@ contract BulletLastPresale is
     }
 
     function _sendEther(address to, uint256 amount) private {
-        if (address(this).balance >= amount) {
-            revert InsufficientCurrentBalance(address(this).balance, amount);
-        }
-
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = to.call{ value: amount }("");
         if (!success) {
@@ -248,6 +241,7 @@ contract BulletLastPresale is
         if (round.startTime == 0) {
             revert ActiveRoundNotFound();
         }
+
         return round;
     }
 
@@ -257,13 +251,6 @@ contract BulletLastPresale is
         }
         if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
             revert InvalidBuyPeriod(block.timestamp, round.startTime, round.endTime);
-        }
-    }
-
-    function _toUint256(bool b) private pure returns (uint256 n) {
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            n := b
         }
     }
 }
