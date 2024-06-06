@@ -4,13 +4,12 @@ pragma solidity 0.8.22;
 interface IBulletLastPresale {
     struct Round {
         uint256 id;
-        uint256 startTime;
-        uint256 endTime;
-        uint256 price;
         uint256 allocatedAmount;
-        uint256 vestingStartTime;
-        uint256 vestingCliff;
-        uint256 vestingPeriod;
+        uint64 startTime;
+        uint64 endTime;
+        uint64 price;
+        uint64 vestingStartTime;
+        uint64 vestingPeriod;
     }
 
     struct Vesting {
@@ -25,14 +24,13 @@ interface IBulletLastPresale {
     event SaleTokenSet(address indexed saleToken);
 
     event RoundCreated(
-        uint256 id,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 price,
+        uint16 id,
+        uint16 price,
         uint256 allocatedAmount,
-        uint256 vestingStartTime,
-        uint256 vestingCliff,
-        uint256 vestingPeriod
+        uint64 startTime,
+        uint64 endTime,
+        uint64 vestingStartTime,
+        uint64 vestingPeriod
     );
 
     event SaleTokenWithEtherBought(
@@ -83,17 +81,16 @@ interface IBulletLastPresale {
 
     error EtherTransferFailed(address to, uint256 amount);
 
-    function setActiveRoundId(uint256 activeRoundId) external;
+    function setActiveRoundId(uint16 activeRoundId) external;
 
     function createRound(
-        uint256 id,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 price,
+        uint16 id,
+        uint16 price,
         uint256 allocatedAmount,
-        uint256 vestingStartTime,
-        uint256 vestingCliff,
-        uint256 vestingPeriod
+        uint64 startTime,
+        uint64 endTime,
+        uint64 vestingStartTime,
+        uint64 vestingPeriod
     ) external;
 
     function pause() external;
@@ -104,9 +101,9 @@ interface IBulletLastPresale {
 
     function buySaleTokenWithUSDT(uint256 amount) external;
 
-    function claimSaleToken(uint256 roundId, address user) external;
+    function claimSaleToken(address user, uint256 roundId) external;
 
-    function claimableSaleTokenAmount(uint256 roundId, address user) external view returns (uint256);
+    function claimableSaleTokenAmount(address user, uint256 roundId) external view returns (uint256);
 
     function getActiveRound() external view returns (Round memory);
 

@@ -28,7 +28,7 @@ contract BulletLastPresale is
 
     uint8 private constant _USDT_TOKEN_DECIMALS = 6;
 
-    uint256 public activeRoundId;
+    uint16 public activeRoundId;
     IERC20 public saleToken;
     AggregatorV3Interface public etherPriceFeed;
     IERC20 public usdtToken;
@@ -74,7 +74,7 @@ contract BulletLastPresale is
         _unpause();
     }
 
-    function setActiveRoundId(uint256 activeRoundId_) external onlyRole(ROUND_MANAGER_ROLE) {
+    function setActiveRoundId(uint16 activeRoundId_) external onlyRole(ROUND_MANAGER_ROLE) {
         if (activeRoundId_ == activeRoundId) {
             revert ActiveRoundIdAlreadySet(activeRoundId_);
         }
@@ -84,14 +84,13 @@ contract BulletLastPresale is
     }
 
     function createRound(
-        uint256 id,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 price,
+        uint16 id,
+        uint16 price,
         uint256 allocatedAmount,
-        uint256 vestingStartTime,
-        uint256 vestingCliff,
-        uint256 vestingPeriod
+        uint64 startTime,
+        uint64 endTime,
+        uint64 vestingStartTime,
+        uint64 vestingPeriod
     ) external onlyRole(ROUND_MANAGER_ROLE) {
         if (startTime == 0 || endTime == 0 || endTime >= startTime) {
             revert InvalidTimePeriod(startTime, endTime);
@@ -108,25 +107,15 @@ contract BulletLastPresale is
 
         rounds[activeRoundId] = Round({
             id: id,
+            allocatedAmount: allocatedAmount,
             startTime: startTime,
             endTime: endTime,
             price: price,
-            allocatedAmount: allocatedAmount,
             vestingStartTime: vestingStartTime,
-            vestingCliff: vestingCliff,
             vestingPeriod: vestingPeriod
         });
 
-        emit RoundCreated(
-            activeRoundId,
-            startTime,
-            endTime,
-            price,
-            allocatedAmount,
-            vestingStartTime,
-            vestingCliff,
-            vestingPeriod
-        );
+        emit RoundCreated(activeRoundId, price, allocatedAmount, startTime, endTime, vestingStartTime, vestingPeriod);
     }
 
     function buySaleTokenWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
@@ -140,7 +129,10 @@ contract BulletLastPresale is
         }
 
         rounds[activeRound.id].allocatedAmount -= amount;
-        _setUserVesting(activeRound, amount);
+
+        for (uint256 i = 0; i < 4; i++) {
+            _setUserVesting(activeRound, amount, i);
+        }
 
         _sendEther(address(this), etherAmount);
 
@@ -160,15 +152,18 @@ contract BulletLastPresale is
         uint256 usdtAmount = usdPrice / (10 ** 12);
 
         activeRound.allocatedAmount -= amount;
-        _setUserVesting(activeRound, amount);
+
+        for (uint256 i = 0; i < 4; i++) {
+            _setUserVesting(activeRound, amount, i);
+        }
 
         usdtToken.safeTransferFrom(_msgSender(), address(this), usdtAmount);
 
         emit SaleTokenWithUSDTBought(_msgSender(), activeRound.id, address(usdtToken), amount, usdtAmount);
     }
 
-    function claimSaleToken(uint256 roundId, address user) external nonReentrant whenNotPaused {
-        uint256 amount = claimableSaleTokenAmount(roundId, user);
+    function claimSaleToken(address user, uint256 roundId) external nonReentrant whenNotPaused {
+        uint256 amount = claimableSaleTokenAmount(user, roundId);
         if (amount == 0) {
             revert ZeroClaimAmount();
         }
@@ -189,7 +184,7 @@ contract BulletLastPresale is
         return _getActiveRound();
     }
 
-    function claimableSaleTokenAmount(uint256 roundId, address user) public view returns (uint256) {
+    function claimableSaleTokenAmount(address user, uint256 roundId) public view returns (uint256) {
         Vesting memory userVesting = userVestings[user][roundId];
         uint256 amount = userVesting.totalAmount - userVesting.claimedAmount;
 
@@ -212,12 +207,11 @@ contract BulletLastPresale is
         return uint256((price * (10 ** 10)));
     }
 
-    function _setUserVesting(Round storage round, uint256 amount) private {
-        Vesting storage userVesting = userVestings[_msgSender()][round.id];
-        if (userVesting.totalAmount > 0) {
-            userVesting.totalAmount += (amount * _USDT_TOKEN_DECIMALS);
+    function _setUserVesting(Round storage round, uint256 amount, uint256 cliff) private {
+        if (cliff > 0) {
+            userVestings[_msgSender()][round.id].totalAmount += (amount * _USDT_TOKEN_DECIMALS);
         } else {
-            uint256 startTime = round.vestingStartTime + round.vestingCliff;
+            uint256 startTime = round.vestingStartTime + cliff * 30 days;
             userVestings[_msgSender()][round.id] = Vesting({
                 totalAmount: amount * _USDT_TOKEN_DECIMALS,
                 claimedAmount: 0,
