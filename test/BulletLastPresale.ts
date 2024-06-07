@@ -1,28 +1,40 @@
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { BulletLastPresale } from "../typechain-types";
 import { generateRandomAddress } from "../utils/account";
 
+type Round = [bigint, bigint, bigint, bigint];
+
 describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
 
+    const roundId = 1n;
+    const roundDuration = 60n;
+    const roundPrice = 2n * 10n ** 16n;
+
+    const saleTokenAmount = 10_000n * 10n ** 18n;
+    const usdtAmount = 200n * 10n ** 6n;
+
     async function deployFixture() {
-        const [deployer, executor, grantee, roundManager, treasury] = await ethers.getSigners();
+        const [deployer, executor, grantee, roundManager, bulletLastTreasury, buyer] =
+            await ethers.getSigners();
 
         const BulletLast = await ethers.getContractFactory("BulletLast");
         const bulletLast = await BulletLast.deploy(deployer.address);
         const bulletLastAddress = await bulletLast.getAddress();
 
         const etherPriceFeedAddress = generateRandomAddress(ethers);
-        const usdtTokenAddress = generateRandomAddress(ethers);
+        const USDTMock = await ethers.getContractFactory("USDTMock");
+        const usdtMock = await USDTMock.deploy(buyer.address, usdtAmount);
+        const usdtMockAddress = await usdtMock.getAddress();
 
         const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
         const bulletLastPresale = await upgrades.deployProxy(BulletLastPresale, [
             bulletLastAddress,
             etherPriceFeedAddress,
-            usdtTokenAddress,
-            treasury.address,
+            usdtMockAddress,
+            bulletLastTreasury.address,
         ]);
         const bulletLastPresaleAddress = await bulletLastPresale.getAddress();
 
@@ -37,12 +49,14 @@ describe("BulletLastPresale", function () {
             bulletLast,
             bulletLastAddress,
             etherPriceFeedAddress,
-            usdtTokenAddress,
+            usdtMock,
+            usdtMockAddress,
             deployer,
             executor,
             grantee,
             roundManager,
-            treasury,
+            bulletLastTreasury,
+            buyer,
             defaultAdminRole,
             roundManagerRole,
         };
@@ -51,15 +65,19 @@ describe("BulletLastPresale", function () {
     describe("Deploy the contract", function () {
         describe("Validations", function () {
             it("Should revert with the right error if passing the zero vesting token address", async function () {
-                const { bulletLastPresale, etherPriceFeedAddress, usdtTokenAddress, treasury } =
-                    await loadFixture(deployFixture);
+                const {
+                    bulletLastPresale,
+                    etherPriceFeedAddress,
+                    usdtMockAddress,
+                    bulletLastTreasury,
+                } = await loadFixture(deployFixture);
 
                 const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
                 const promise = upgrades.deployProxy(BulletLastPresale, [
                     ethers.ZeroAddress,
                     etherPriceFeedAddress,
-                    usdtTokenAddress,
-                    treasury.address,
+                    usdtMockAddress,
+                    bulletLastTreasury.address,
                 ]);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroSaleToken")
@@ -103,10 +121,10 @@ describe("BulletLastPresale", function () {
             });
 
             it("Should return the right treasury address", async function () {
-                const { bulletLastPresale, treasury } = await loadFixture(deployFixture);
+                const { bulletLastPresale, bulletLastTreasury } = await loadFixture(deployFixture);
 
                 const currentTreasuryAddress: string = await bulletLastPresale.treasury();
-                expect(currentTreasuryAddress).to.equal(treasury.address);
+                expect(currentTreasuryAddress).to.equal(bulletLastTreasury.address);
             });
         });
     });
@@ -444,5 +462,74 @@ describe("BulletLastPresale", function () {
                 expect(paused).to.be.false;
             });
         });
+    });
+
+    describe("Create a round", function () {
+        describe("Validations", function () {});
+
+        describe("Events", function () {
+            it("Should emit the RoundCreated event", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                const promise = bulletLastPresale.createRound(
+                    roundId,
+                    startTime,
+                    endTime,
+                    roundPrice
+                );
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "RoundCreated")
+                    .withArgs(roundId, startTime, endTime, roundPrice);
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right round", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+
+                const [currentRoundId, currentStartTime, currentEndTime, currentPrice]: Round =
+                    await bulletLastPresale.rounds(roundId);
+                expect(currentRoundId).to.equal(roundId);
+                expect(currentStartTime).to.equal(startTime);
+                expect(currentEndTime).to.equal(endTime);
+                expect(currentPrice).to.equal(roundPrice);
+            });
+        });
+    });
+
+    describe("Buy with USDT", function () {
+        describe("Validations", function () {});
+
+        describe("Events", function () {
+            it("Should emit the BoughtWithEther event", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtMock.connect(buyer).approve(bulletLastPresaleAddress, usdtAmount);
+
+                const promise = await (
+                    bulletLastPresale.connect(buyer) as BulletLastPresale
+                ).buyWithUSDT(saleTokenAmount);
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "BoughtWithUSDT")
+                    .withArgs(buyer.address, roundId, saleTokenAmount, usdtAmount);
+            });
+        });
+
+        describe("Checks", function () {});
     });
 });

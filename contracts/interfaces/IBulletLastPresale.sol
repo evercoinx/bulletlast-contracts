@@ -40,8 +40,6 @@ interface IBulletLastPresale {
 
     error ZeroClaimAmount();
 
-    error ZeroBuyAmount();
-
     error ZeroActiveRoundId();
 
     error ActiveRoundNotFound();
@@ -49,6 +47,8 @@ interface IBulletLastPresale {
     error ActiveRoundIdAlreadySet(uint256 activeRoundId);
 
     error InvalidTimePeriod(uint256 startTime, uint256 endTime);
+
+    error TooLowBuyAmount(uint256 amount);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
 

@@ -113,7 +113,7 @@ contract BulletLastPresale is
         uint64 endTime,
         uint256 price
     ) external onlyRole(ROUND_MANAGER_ROLE) {
-        if (startTime == 0 || endTime == 0 || endTime >= startTime) {
+        if (startTime == 0 || endTime == 0 || startTime >= endTime) {
             revert InvalidTimePeriod(startTime, endTime);
         }
         if (price == 0) {
@@ -121,20 +121,14 @@ contract BulletLastPresale is
         }
 
         rounds[id] = Round({ id: id, startTime: startTime, endTime: endTime, price: price });
-        emit RoundCreated(activeRoundId, startTime, endTime, price);
+        emit RoundCreated(id, startTime, endTime, price);
     }
 
     function buyWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
         _checkSale(activeRound, amount);
 
-        for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
-            _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
-
-            unchecked {
-                ++i;
-            }
-        }
+        _handleUserVesting(activeRound, amount);
 
         uint256 etherAmount = (amount * activeRound.price * 1 ether) / getLatestEtherPrice();
         if (etherAmount > msg.value) {
@@ -155,15 +149,9 @@ contract BulletLastPresale is
         Round storage activeRound = _getActiveRound();
         _checkSale(activeRound, amount);
 
-        for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
-            _setUserVesting(activeRound, amount / _TOTAL_VESTING_CLIFFS, i);
+        _handleUserVesting(activeRound, amount);
 
-            unchecked {
-                ++i;
-            }
-        }
-
-        uint256 usdtAmount = (amount * activeRound.price) / (10 ** 12);
+        uint256 usdtAmount = (amount * activeRound.price) / (10 ** 18) / (10 ** 12);
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
 
         emit BoughtWithUSDT(_msgSender(), activeRound.id, amount, usdtAmount);
@@ -214,6 +202,20 @@ contract BulletLastPresale is
         return uint256((price * (10 ** 10)));
     }
 
+    function _handleUserVesting(Round storage round, uint256 amount) private {
+        uint256 partialAmount = amount / _TOTAL_VESTING_CLIFFS;
+        uint256 lastPartialAmount = amount - partialAmount * _TOTAL_VESTING_CLIFFS;
+
+        for (uint8 i = 0; i < _TOTAL_VESTING_CLIFFS; ) {
+            uint256 currentAmount = i == _TOTAL_VESTING_CLIFFS - 1 ? lastPartialAmount : partialAmount;
+            _setUserVesting(round, currentAmount, i);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function _setUserVesting(Round storage round, uint256 amount, uint8 cliffNumber) private {
         if (cliffNumber > 0) {
             userVestings[_msgSender()][round.id].totalAmount += (amount * _USDT_TOKEN_DECIMALS);
@@ -246,8 +248,8 @@ contract BulletLastPresale is
     }
 
     function _checkSale(Round storage round, uint256 amount) private view {
-        if (amount == 0) {
-            revert ZeroBuyAmount();
+        if (amount < _TOTAL_VESTING_CLIFFS) {
+            revert TooLowBuyAmount(amount);
         }
         if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
             revert InvalidBuyPeriod(block.timestamp, round.startTime, round.endTime);
