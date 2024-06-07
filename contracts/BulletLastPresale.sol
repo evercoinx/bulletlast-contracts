@@ -184,7 +184,7 @@ contract BulletLastPresale is
             revert ZeroClaimableAmount(user, roundId);
         }
 
-        saleToken.safeTransfer(user, claimableAmount);
+        saleToken.safeTransferFrom(treasury, user, claimableAmount);
 
         emit Claimed(user, roundId, claimableAmount);
     }
@@ -199,7 +199,7 @@ contract BulletLastPresale is
 
         for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
             Vesting storage vesting = vestings[i];
-            if (vesting.amount > 0 && vesting.startTime >= block.timestamp) {
+            if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
                 claimableAmount += vesting.amount;
             }
         }

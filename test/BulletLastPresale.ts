@@ -620,6 +620,179 @@ describe("BulletLastPresale", function () {
                     expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
                 }
             });
+
+            it("Should return the right claimable amount if reaching the next vesting period", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
+
+                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+
+                const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
+                    buyer.address,
+                    roundId
+                );
+                expect(claimableAmount).to.equal(0n);
+
+                for (let i = 0n; i < 3n; i++) {
+                    const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
+                        buyer.address,
+                        roundId,
+                        i
+                    );
+                    await time.increaseTo(currentStartTime);
+
+                    const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
+                        buyer.address,
+                        roundId
+                    );
+                    expect(claimableAmount).to.equal(minSaleTokenPartialAmount * (i + 1n));
+                }
+            });
+        });
+    });
+
+    describe("Claim", function () {
+        describe("Validations", function () {
+            it("Should return the right error if having the zero claimable amount", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+
+                const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
+                    buyer.address,
+                    roundId,
+                    0n
+                );
+                await time.increaseTo(currentStartTime - 2n);
+
+                const promise = bulletLastPresale.claim(buyer.address, roundId);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
+                    .withArgs(buyer.address, roundId);
+            });
+
+            it("Should return the right error if claiming the same vesting period twice", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+
+                const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
+                    buyer.address,
+                    roundId,
+                    0n
+                );
+                await time.increaseTo(currentStartTime);
+
+                await bulletLastPresale.claim(buyer.address, roundId);
+
+                const promise = bulletLastPresale.claim(buyer.address, roundId);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
+                    .withArgs(buyer.address, roundId);
+            });
+        });
+
+        describe("Events", function () {
+            it("Should emit the Claimed event", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+
+                const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
+                    buyer.address,
+                    roundId,
+                    0n
+                );
+                await time.increaseTo(currentStartTime);
+
+                const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
+                    buyer.address,
+                    roundId
+                );
+
+                const promise = bulletLastPresale.claim(buyer.address, roundId);
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "Claimed")
+                    .withArgs(buyer.address, roundId, claimableAmount);
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right claimable amount", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+
+                const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
+                    buyer.address,
+                    roundId,
+                    0n
+                );
+                await time.increaseTo(currentStartTime);
+
+                const initialClaimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
+                    buyer.address,
+                    roundId
+                );
+                await bulletLastPresale.claim(buyer.address, roundId);
+
+                const currentClaimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
+                    buyer.address,
+                    roundId
+                );
+                expect(currentClaimableAmount).not.to.equal(initialClaimableAmount);
+                expect(currentClaimableAmount).to.equal(0n);
+            });
         });
     });
 });
