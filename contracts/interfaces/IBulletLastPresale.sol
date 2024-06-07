@@ -10,10 +10,8 @@ interface IBulletLastPresale {
     }
 
     struct Vesting {
-        uint256 totalAmount;
-        uint256 claimedAmount;
+        uint256 amount;
         uint64 startTime;
-        uint64 endTime;
     }
 
     event TreasurySet(address indexed treasury);
@@ -38,8 +36,6 @@ interface IBulletLastPresale {
 
     error ZeroPrice();
 
-    error ZeroClaimAmount();
-
     error ZeroActiveRoundId();
 
     error ActiveRoundNotFound();
@@ -48,15 +44,17 @@ interface IBulletLastPresale {
 
     error InvalidTimePeriod(uint256 startTime, uint256 endTime);
 
-    error TooLowUSDTBuy(uint256 amount);
+    error TooLowUSDTBuyAmount(uint256 amount);
 
-    error TooHighUSDTBuy(uint256 amount);
+    error TooHighUSDTBuyAmount(uint256 amount);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
 
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
-    error InsufficientCurrentBalance(uint256 currentBalance, uint256 amount);
+    error InsufficientSaleTokenBalance(uint256 currentBalance, uint256 amount);
+
+    error ZeroClaimableAmount(address user, uint256 amount);
 
     error EtherTransferFailed(address to, uint256 amount);
 
@@ -75,8 +73,6 @@ interface IBulletLastPresale {
     function buyWithUSDT(uint256 amount) external;
 
     function claim(address user, uint16 roundId) external;
-
-    function claimableAmount(address user, uint16 roundId) external view returns (uint256);
 
     function getActiveRound() external view returns (Round memory);
 

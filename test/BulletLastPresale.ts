@@ -1,10 +1,16 @@
-import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
+import {
+    impersonateAccount,
+    loadFixture,
+    setBalance,
+    time,
+} from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
-import { BulletLastPresale } from "../typechain-types";
+import { BulletLastPresale, BulletLastToken } from "../typechain-types";
 import { generateRandomAddress } from "../utils/account";
 
 type Round = [bigint, bigint, bigint, bigint];
+type Vesting = [bigint, bigint];
 
 describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
@@ -12,16 +18,21 @@ describe("BulletLastPresale", function () {
     const roundDuration = 60n;
     const roundPrice = 200n; // 0.02 LEAD/USD
     const minSaleTokenAmount = ethers.parseUnits("5000", 18); // 5,000 LEAD
+    const minSaleTokenPartialAmount = minSaleTokenAmount / 4n;
     const maxSaleTokenAmount = ethers.parseUnits("50000", 18); // 50,000 LEAD
     const minUSDTAmount = ethers.parseUnits("100", 6); // 100 USDT
     const maxUSDTAmount = ethers.parseUnits("1000", 6); // 1000 USDT
 
     async function deployFixture() {
-        const [deployer, executor, grantee, roundManager, treasury, buyer] =
-            await ethers.getSigners();
+        const [deployer, executor, grantee, roundManager, buyer] = await ethers.getSigners();
+
+        const treasuryAddress = "0x3951b3a254a4285683abc08e63b2e632a4aa3752";
+        await impersonateAccount(treasuryAddress);
+        await setBalance(treasuryAddress, ethers.parseEther("10000"));
+        const treasury = await ethers.provider.getSigner(treasuryAddress);
 
         const BulletLastToken = await ethers.getContractFactory("BulletLastToken");
-        const bulletLastToken = await BulletLastToken.deploy(deployer.address);
+        const bulletLastToken = await BulletLastToken.deploy(treasury.address);
         const bulletLastTokenAddress = await bulletLastToken.getAddress();
 
         const etherPriceFeedAddress = generateRandomAddress(ethers);
@@ -42,6 +53,10 @@ describe("BulletLastPresale", function () {
         const roundManagerRole = await bulletLastPresale.ROUND_MANAGER_ROLE();
 
         await bulletLastPresale.grantRole(roundManagerRole, roundManager);
+        await (bulletLastToken.connect(treasury) as BulletLastToken).approve(
+            bulletLastPresaleAddress,
+            maxSaleTokenAmount
+        );
 
         return {
             bulletLastPresale,
@@ -548,10 +563,11 @@ describe("BulletLastPresale", function () {
         });
 
         describe("Checks", function () {
-            it("Should return the right balances", async function () {
+            it("Should return the right tokens balances", async function () {
                 const {
                     bulletLastPresale,
                     bulletLastPresaleAddress,
+                    bulletLastToken,
                     usdtTokenMock,
                     buyer,
                     treasury,
@@ -573,14 +589,20 @@ describe("BulletLastPresale", function () {
                     [buyer, treasury, bulletLastPresale],
                     [-minUSDTAmount, minUSDTAmount, 0n]
                 );
+                await expect(promise).to.changeTokenBalances(
+                    bulletLastToken,
+                    [buyer, treasury, bulletLastPresale],
+                    [minSaleTokenPartialAmount, -minSaleTokenPartialAmount, 0n]
+                );
             });
 
-            it("Should return the right user vesting", async function () {
+            it("Should return the right user vestings", async function () {
                 const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
+                const vestingDuration: bigint = await bulletLastPresale.VESTING_DURATION();
 
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
@@ -591,7 +613,12 @@ describe("BulletLastPresale", function () {
                     minSaleTokenAmount
                 );
 
-                await bulletLastPresale.userVestings(buyer.address, roundId);
+                for (let i = 0n; i < 3n; i++) {
+                    const [currentAmount, currentStartTime]: Vesting =
+                        await bulletLastPresale.userVestings(buyer.address, roundId, i);
+                    expect(currentAmount).to.equal(minSaleTokenPartialAmount);
+                    expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
+                }
             });
         });
     });
