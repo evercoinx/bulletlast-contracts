@@ -8,33 +8,31 @@ type Round = [bigint, bigint, bigint, bigint];
 
 describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
-
     const roundId = 1n;
     const roundDuration = 60n;
-    const roundPrice = 2n * 10n ** 16n;
-
-    const saleTokenAmount = 10_000n * 10n ** 18n;
-    const usdtAmount = 200n * 10n ** 6n;
+    const roundPrice = 2n * 10n ** 16n; // 0.02 LEAD/USD
+    const saleTokenAmount = 10_000n * 10n ** 18n; // 10,000 LEAD
+    const usdtAmount = 200n * 10n ** 6n; // 200 USDT
 
     async function deployFixture() {
-        const [deployer, executor, grantee, roundManager, bulletLastTreasury, buyer] =
+        const [deployer, executor, grantee, roundManager, treasury, buyer] =
             await ethers.getSigners();
 
-        const BulletLast = await ethers.getContractFactory("BulletLast");
-        const bulletLast = await BulletLast.deploy(deployer.address);
-        const bulletLastAddress = await bulletLast.getAddress();
+        const BulletLastToken = await ethers.getContractFactory("BulletLastToken");
+        const bulletLastToken = await BulletLastToken.deploy(deployer.address);
+        const bulletLastTokenAddress = await bulletLastToken.getAddress();
 
         const etherPriceFeedAddress = generateRandomAddress(ethers);
-        const USDTMock = await ethers.getContractFactory("USDTMock");
-        const usdtMock = await USDTMock.deploy(buyer.address, usdtAmount);
-        const usdtMockAddress = await usdtMock.getAddress();
+        const USDTTokenMock = await ethers.getContractFactory("USDTTokenMock");
+        const usdtTokenMock = await USDTTokenMock.deploy(buyer.address, usdtAmount);
+        const usdtTokenMockAddress = await usdtTokenMock.getAddress();
 
         const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
         const bulletLastPresale = await upgrades.deployProxy(BulletLastPresale, [
-            bulletLastAddress,
+            bulletLastTokenAddress,
             etherPriceFeedAddress,
-            usdtMockAddress,
-            bulletLastTreasury.address,
+            usdtTokenMockAddress,
+            treasury.address,
         ]);
         const bulletLastPresaleAddress = await bulletLastPresale.getAddress();
 
@@ -46,16 +44,16 @@ describe("BulletLastPresale", function () {
         return {
             bulletLastPresale,
             bulletLastPresaleAddress,
-            bulletLast,
-            bulletLastAddress,
+            bulletLastToken,
+            bulletLastTokenAddress,
             etherPriceFeedAddress,
-            usdtMock,
-            usdtMockAddress,
+            usdtTokenMock,
+            usdtTokenMockAddress,
             deployer,
             executor,
             grantee,
             roundManager,
-            bulletLastTreasury,
+            treasury,
             buyer,
             defaultAdminRole,
             roundManagerRole,
@@ -65,19 +63,15 @@ describe("BulletLastPresale", function () {
     describe("Deploy the contract", function () {
         describe("Validations", function () {
             it("Should revert with the right error if passing the zero vesting token address", async function () {
-                const {
-                    bulletLastPresale,
-                    etherPriceFeedAddress,
-                    usdtMockAddress,
-                    bulletLastTreasury,
-                } = await loadFixture(deployFixture);
+                const { bulletLastPresale, etherPriceFeedAddress, usdtTokenMockAddress, treasury } =
+                    await loadFixture(deployFixture);
 
                 const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
                 const promise = upgrades.deployProxy(BulletLastPresale, [
                     ethers.ZeroAddress,
                     etherPriceFeedAddress,
-                    usdtMockAddress,
-                    bulletLastTreasury.address,
+                    usdtTokenMockAddress,
+                    treasury.address,
                 ]);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroSaleToken")
@@ -114,17 +108,18 @@ describe("BulletLastPresale", function () {
             });
 
             it("Should return the right sale token address", async function () {
-                const { bulletLastPresale, bulletLastAddress } = await loadFixture(deployFixture);
+                const { bulletLastPresale, bulletLastTokenAddress } =
+                    await loadFixture(deployFixture);
 
                 const currentSaleTokenAddress: string = await bulletLastPresale.saleToken();
-                expect(currentSaleTokenAddress).to.equal(bulletLastAddress);
+                expect(currentSaleTokenAddress).to.equal(bulletLastTokenAddress);
             });
 
             it("Should return the right treasury address", async function () {
-                const { bulletLastPresale, bulletLastTreasury } = await loadFixture(deployFixture);
+                const { bulletLastPresale, treasury } = await loadFixture(deployFixture);
 
                 const currentTreasuryAddress: string = await bulletLastPresale.treasury();
-                expect(currentTreasuryAddress).to.equal(bulletLastTreasury.address);
+                expect(currentTreasuryAddress).to.equal(treasury.address);
             });
         });
     });
@@ -510,7 +505,7 @@ describe("BulletLastPresale", function () {
 
         describe("Events", function () {
             it("Should emit the BoughtWithEther event", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -519,7 +514,7 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtMock.connect(buyer).approve(bulletLastPresaleAddress, usdtAmount);
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, usdtAmount);
 
                 const promise = await (
                     bulletLastPresale.connect(buyer) as BulletLastPresale

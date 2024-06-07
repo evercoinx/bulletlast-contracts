@@ -1,7 +1,7 @@
 .openzeppelin
 artifacts/
 cache/
-contracts/BulletLast.sol
+contracts/BulletLastToken.sol
 coverage/
 crytic-corpus/
 crytic-export/
