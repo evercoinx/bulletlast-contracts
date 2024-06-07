@@ -35,7 +35,7 @@ describe("BulletLastPresale", function () {
         const bulletLastTokenAddress = await bulletLastToken.getAddress();
 
         const EtherPriceFeedMock = await ethers.getContractFactory("EtherPriceFeedMock");
-        const etherPriceFeedMock = await EtherPriceFeedMock.deploy(1_000_000);
+        const etherPriceFeedMock = await EtherPriceFeedMock.deploy([[1n, 200_000_000_000n]]);
         const etherPriceFeedMockAddress = await etherPriceFeedMock.getAddress();
 
         const USDTTokenMock = await ethers.getContractFactory("USDTTokenMock");
