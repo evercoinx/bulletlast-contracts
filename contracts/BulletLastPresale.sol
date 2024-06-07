@@ -29,7 +29,7 @@ contract BulletLastPresale is
 
     uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** _USDT_TOKEN_DECIMALS;
     uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** _USDT_TOKEN_DECIMALS;
-    uint8 private constant _TOTAL_VESTING_CLIFFS = 3;
+    uint8 private constant _VESTING_CLIFFS = 3;
     uint8 private constant _USDT_TOKEN_DECIMALS = 6;
 
     uint16 public activeRoundId;
@@ -38,7 +38,7 @@ contract BulletLastPresale is
     IERC20 public usdtToken;
     address public treasury;
     mapping(uint256 roundId => Round round) public rounds;
-    mapping(address user => mapping(uint256 roundId => Vesting[_TOTAL_VESTING_CLIFFS] vesting)) public userVestings;
+    mapping(address user => mapping(uint256 roundId => Vesting[_VESTING_CLIFFS] vesting)) public userVestings;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -170,23 +170,18 @@ contract BulletLastPresale is
 
     function claim(address user, uint16 roundId) external nonReentrant whenNotPaused {
         uint256 claimableAmount = 0;
+        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][roundId];
 
-        Vesting[_TOTAL_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][roundId];
-        for (uint256 i = 0; i < _TOTAL_VESTING_CLIFFS; i++) {
-            Vesting storage vestingPart = vestings[i];
-            if (vestingPart.amount > 0 && vestingPart.startTime >= block.timestamp) {
-                claimableAmount += vestingPart.amount;
-                vestingPart.amount = 0;
+        for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
+            Vesting storage vesting = vestings[i];
+            if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
+                claimableAmount += vesting.amount;
+                vesting.amount = 0;
             }
         }
 
         if (claimableAmount == 0) {
             revert ZeroClaimableAmount(user, roundId);
-        }
-
-        uint256 currentBalance = saleToken.balanceOf(address(this));
-        if (currentBalance < claimableAmount) {
-            revert InsufficientSaleTokenBalance(currentBalance, claimableAmount);
         }
 
         saleToken.safeTransfer(user, claimableAmount);
@@ -198,16 +193,30 @@ contract BulletLastPresale is
         return _getActiveRound();
     }
 
+    function getClaimableAmount(address user, uint16 roundId) external view returns (uint256) {
+        uint256 claimableAmount = 0;
+        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][roundId];
+
+        for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
+            Vesting storage vesting = vestings[i];
+            if (vesting.amount > 0 && vesting.startTime >= block.timestamp) {
+                claimableAmount += vesting.amount;
+            }
+        }
+
+        return claimableAmount;
+    }
+
     function getLatestEtherPrice() public view returns (uint256) {
         (, int256 price, , , ) = etherPriceFeed.latestRoundData();
         return uint256((price * (10 ** 10)));
     }
 
     function _handleUserVesting(address user, Round storage round, uint256 amount) private {
-        uint256 vestingAmount = amount / (_TOTAL_VESTING_CLIFFS + 1);
-        Vesting[_TOTAL_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][round.id];
+        uint256 vestingAmount = amount / (_VESTING_CLIFFS + 1);
+        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][round.id];
 
-        for (uint256 i = 0; i < _TOTAL_VESTING_CLIFFS; i++) {
+        for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
             uint64 cliff = uint64(i + 1) * VESTING_DURATION;
             uint64 startTime = round.startTime + cliff;
 
@@ -218,8 +227,8 @@ contract BulletLastPresale is
             }
         }
 
-        uint256 firstTransferAmount = amount - vestingAmount * _TOTAL_VESTING_CLIFFS;
-        saleToken.safeTransferFrom(treasury, user, firstTransferAmount);
+        uint256 unlockedAmount = amount - vestingAmount * _VESTING_CLIFFS;
+        saleToken.safeTransferFrom(treasury, user, unlockedAmount);
     }
 
     function _sendEther(address to, uint256 amount) private {

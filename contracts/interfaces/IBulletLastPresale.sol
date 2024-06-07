@@ -52,8 +52,6 @@ interface IBulletLastPresale {
 
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
-    error InsufficientSaleTokenBalance(uint256 currentBalance, uint256 amount);
-
     error ZeroClaimableAmount(address user, uint256 amount);
 
     error EtherTransferFailed(address to, uint256 amount);
@@ -75,6 +73,8 @@ interface IBulletLastPresale {
     function claim(address user, uint16 roundId) external;
 
     function getActiveRound() external view returns (Round memory);
+
+    function getClaimableAmount(address user, uint16 roundId) external view returns (uint256);
 
     function getLatestEtherPrice() external view returns (uint256);
 }
