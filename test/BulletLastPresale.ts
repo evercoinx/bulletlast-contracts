@@ -7,7 +7,6 @@ import {
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { BulletLastPresale, BulletLastToken } from "../typechain-types";
-import { generateRandomAddress } from "../utils/account";
 
 type Round = [bigint, bigint, bigint, bigint];
 type Vesting = [bigint, bigint];
@@ -35,7 +34,10 @@ describe("BulletLastPresale", function () {
         const bulletLastToken = await BulletLastToken.deploy(treasury.address);
         const bulletLastTokenAddress = await bulletLastToken.getAddress();
 
-        const etherPriceFeedAddress = generateRandomAddress(ethers);
+        const EtherPriceFeedMock = await ethers.getContractFactory("EtherPriceFeedMock");
+        const etherPriceFeedMock = await EtherPriceFeedMock.deploy(1_000_000);
+        const etherPriceFeedMockAddress = await etherPriceFeedMock.getAddress();
+
         const USDTTokenMock = await ethers.getContractFactory("USDTTokenMock");
         const usdtTokenMock = await USDTTokenMock.deploy(buyer.address, maxUSDTAmount);
         const usdtTokenMockAddress = await usdtTokenMock.getAddress();
@@ -43,7 +45,7 @@ describe("BulletLastPresale", function () {
         const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
         const bulletLastPresale = await upgrades.deployProxy(BulletLastPresale, [
             bulletLastTokenAddress,
-            etherPriceFeedAddress,
+            etherPriceFeedMockAddress,
             usdtTokenMockAddress,
             treasury.address,
         ]);
@@ -63,7 +65,8 @@ describe("BulletLastPresale", function () {
             bulletLastPresaleAddress,
             bulletLastToken,
             bulletLastTokenAddress,
-            etherPriceFeedAddress,
+            etherPriceFeedMock,
+            etherPriceFeedMockAddress,
             usdtTokenMock,
             usdtTokenMockAddress,
             deployer,
@@ -80,13 +83,17 @@ describe("BulletLastPresale", function () {
     describe("Deploy the contract", function () {
         describe("Validations", function () {
             it("Should revert with the right error if passing the zero vesting token address", async function () {
-                const { bulletLastPresale, etherPriceFeedAddress, usdtTokenMockAddress, treasury } =
-                    await loadFixture(deployFixture);
+                const {
+                    bulletLastPresale,
+                    etherPriceFeedMockAddress,
+                    usdtTokenMockAddress,
+                    treasury,
+                } = await loadFixture(deployFixture);
 
                 const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
                 const promise = upgrades.deployProxy(BulletLastPresale, [
                     ethers.ZeroAddress,
-                    etherPriceFeedAddress,
+                    etherPriceFeedMockAddress,
                     usdtTokenMockAddress,
                     treasury.address,
                 ]);

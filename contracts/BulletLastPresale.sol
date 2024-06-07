@@ -130,12 +130,12 @@ contract BulletLastPresale is
             revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
         }
 
-        _handleUserVesting(_msgSender(), activeRound, amount);
-
         uint256 etherAmount = (amount * activeRound.price * 1 ether) / getLatestEtherPrice();
         if (etherAmount > msg.value) {
             revert InsufficientEtherAmount(etherAmount, msg.value);
         }
+
+        _handleUserVesting(_msgSender(), activeRound, amount);
 
         _sendEther(treasury, etherAmount);
 
