@@ -10,9 +10,11 @@ describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
     const roundId = 1n;
     const roundDuration = 60n;
-    const roundPrice = 2n * 10n ** 16n; // 0.02 LEAD/USD
-    const saleTokenAmount = 10_000n * 10n ** 18n; // 10,000 LEAD
-    const usdtAmount = 200n * 10n ** 6n; // 200 USDT
+    const roundPrice = 200n; // 0.02 LEAD/USD
+    const minSaleTokenAmount = ethers.parseUnits("5000", 18); // 5,000 LEAD
+    const maxSaleTokenAmount = ethers.parseUnits("50000", 18); // 50,000 LEAD
+    const minUSDTAmount = ethers.parseUnits("100", 6); // 100 USDT
+    const maxUSDTAmount = ethers.parseUnits("1000", 6); // 1000 USDT
 
     async function deployFixture() {
         const [deployer, executor, grantee, roundManager, treasury, buyer] =
@@ -24,7 +26,7 @@ describe("BulletLastPresale", function () {
 
         const etherPriceFeedAddress = generateRandomAddress(ethers);
         const USDTTokenMock = await ethers.getContractFactory("USDTTokenMock");
-        const usdtTokenMock = await USDTTokenMock.deploy(buyer.address, usdtAmount);
+        const usdtTokenMock = await USDTTokenMock.deploy(buyer.address, maxUSDTAmount);
         const usdtTokenMockAddress = await usdtTokenMock.getAddress();
 
         const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
@@ -504,7 +506,7 @@ describe("BulletLastPresale", function () {
         describe("Validations", function () {});
 
         describe("Events", function () {
-            it("Should emit the BoughtWithEther event", async function () {
+            it("Should emit the BoughtWithEther event if buying the minimum amount", async function () {
                 const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
                     await loadFixture(deployFixture);
 
@@ -514,17 +516,83 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, usdtAmount);
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
 
-                const promise = await (
-                    bulletLastPresale.connect(buyer) as BulletLastPresale
-                ).buyWithUSDT(saleTokenAmount);
+                const promise = (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
                 await expect(promise)
                     .to.emit(bulletLastPresale, "BoughtWithUSDT")
-                    .withArgs(buyer.address, roundId, saleTokenAmount, usdtAmount);
+                    .withArgs(buyer.address, roundId, minSaleTokenAmount, minUSDTAmount);
+            });
+
+            it("Should emit the BoughtWithEther event if buying the maximum amount", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
+
+                const promise = (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    maxSaleTokenAmount
+                );
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "BoughtWithUSDT")
+                    .withArgs(buyer.address, roundId, maxSaleTokenAmount, maxUSDTAmount);
             });
         });
 
-        describe("Checks", function () {});
+        describe("Checks", function () {
+            it("Should return the right balances", async function () {
+                const {
+                    bulletLastPresale,
+                    bulletLastPresaleAddress,
+                    usdtTokenMock,
+                    buyer,
+                    treasury,
+                } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
+
+                const promise = (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+                await expect(promise).to.changeTokenBalances(
+                    usdtTokenMock,
+                    [buyer, treasury, bulletLastPresale],
+                    [-minUSDTAmount, minUSDTAmount, 0n]
+                );
+            });
+
+            it("Should return the right user vesting", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
+
+                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+
+                await bulletLastPresale.userVestings(buyer.address, roundId);
+            });
+        });
     });
 });

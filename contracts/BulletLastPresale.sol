@@ -26,8 +26,8 @@ contract BulletLastPresale is
     bytes32 public constant VERSION = "1.0.0";
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
     uint64 public constant VESTING_DURATION = 30 days;
-    uint16 public constant MIN_USD_BUY = 100;
-    uint16 public constant MAX_USD_BUY = 1_000;
+    uint256 public constant MIN_USDT_BUY = 100 * 10 ** _USDT_TOKEN_DECIMALS;
+    uint256 public constant MAX_USDT_BUY = 1_000 * 10 ** _USDT_TOKEN_DECIMALS;
 
     uint8 private constant _TOTAL_VESTING_CLIFFS = 4;
     uint8 private constant _USDT_TOKEN_DECIMALS = 6;
@@ -111,7 +111,7 @@ contract BulletLastPresale is
         uint16 id,
         uint64 startTime,
         uint64 endTime,
-        uint256 price
+        uint16 price
     ) external onlyRole(ROUND_MANAGER_ROLE) {
         if (startTime == 0 || endTime == 0 || startTime >= endTime) {
             revert InvalidTimePeriod(startTime, endTime);
@@ -126,7 +126,9 @@ contract BulletLastPresale is
 
     function buyWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
-        _checkSale(activeRound, amount);
+        if (block.timestamp < activeRound.startTime || block.timestamp > activeRound.endTime) {
+            revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
+        }
 
         _handleUserVesting(activeRound, amount);
 
@@ -147,11 +149,20 @@ contract BulletLastPresale is
 
     function buyWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
-        _checkSale(activeRound, amount);
+        if (block.timestamp < activeRound.startTime || block.timestamp > activeRound.endTime) {
+            revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
+        }
+
+        uint256 usdtAmount = (amount * activeRound.price) / (10 ** 16);
+        if (usdtAmount < MIN_USDT_BUY) {
+            revert TooLowUSDTBuy(usdtAmount);
+        }
+        if (usdtAmount > MAX_USDT_BUY) {
+            revert TooHighUSDTBuy(usdtAmount);
+        }
 
         _handleUserVesting(activeRound, amount);
 
-        uint256 usdtAmount = (amount * activeRound.price) / (10 ** 18) / (10 ** 12);
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
 
         emit BoughtWithUSDT(_msgSender(), activeRound.id, amount, usdtAmount);
@@ -245,14 +256,5 @@ contract BulletLastPresale is
         }
 
         return round;
-    }
-
-    function _checkSale(Round storage round, uint256 amount) private view {
-        if (amount < _TOTAL_VESTING_CLIFFS) {
-            revert TooLowBuyAmount(amount);
-        }
-        if (block.timestamp < round.startTime || block.timestamp > round.endTime) {
-            revert InvalidBuyPeriod(block.timestamp, round.startTime, round.endTime);
-        }
     }
 }

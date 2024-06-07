@@ -6,7 +6,7 @@ interface IBulletLastPresale {
         uint16 id;
         uint64 startTime;
         uint64 endTime;
-        uint256 price;
+        uint16 price;
     }
 
     struct Vesting {
@@ -20,7 +20,7 @@ interface IBulletLastPresale {
 
     event ActiveRoundIdSet(uint256 activeRoundId);
 
-    event RoundCreated(uint16 id, uint64 startTime, uint64 endTime, uint256 price);
+    event RoundCreated(uint16 id, uint64 startTime, uint64 endTime, uint16 price);
 
     event BoughtWithEther(address indexed user, uint256 indexed roundId, uint256 amount, uint256 etherAmount);
 
@@ -48,7 +48,9 @@ interface IBulletLastPresale {
 
     error InvalidTimePeriod(uint256 startTime, uint256 endTime);
 
-    error TooLowBuyAmount(uint256 amount);
+    error TooLowUSDTBuy(uint256 amount);
+
+    error TooHighUSDTBuy(uint256 amount);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
 
@@ -66,7 +68,7 @@ interface IBulletLastPresale {
 
     function setActiveRoundId(uint16 activeRoundId) external;
 
-    function createRound(uint16 id, uint64 startTime, uint64 endTime, uint256 price) external;
+    function createRound(uint16 id, uint64 startTime, uint64 endTime, uint16 price) external;
 
     function buyWithEther(uint256 amount) external payable;
 
