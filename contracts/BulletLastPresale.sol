@@ -209,7 +209,7 @@ contract BulletLastPresale is
 
     function getLatestEtherPrice() public view returns (uint256) {
         (, int256 price, , , ) = etherPriceFeed.latestRoundData();
-        return uint256((price * (10 ** 10)));
+        return uint256(price) * 10 ** 10;
     }
 
     function _handleUserVesting(address user, Round storage round, uint256 amount) private {

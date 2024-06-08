@@ -5,15 +5,17 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 contract EtherPriceFeedMock is Ownable, AggregatorV3Interface {
-    mapping(uint256 roundId => int256 answer) private _answers;
-    uint256 private _latestRoundId;
+    mapping(uint256 roundId => int256 answer) public roundAnswers;
+    uint256 public latestRoundId;
 
-    constructor(int256[2][] memory roundAnswers) Ownable(_msgSender()) {
-        for (uint256 i = 0; i < roundAnswers.length; i++) {
-            _answers[uint256(roundAnswers[i][0])] = roundAnswers[i][1];
+    constructor(int256[2][] memory roundAnswers_) Ownable(_msgSender()) {
+        uint256 roundAnswerCount = roundAnswers_.length;
+
+        for (uint256 i = 0; i < roundAnswerCount; i++) {
+            roundAnswers[uint256(roundAnswers_[i][0])] = roundAnswers_[i][1];
         }
 
-        _latestRoundId = roundAnswers.length - 1;
+        latestRoundId = roundAnswerCount - 1;
     }
 
     function getRoundData(
@@ -24,7 +26,7 @@ contract EtherPriceFeedMock is Ownable, AggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
         roundId = roundId_;
-        answer = _answers[roundId];
+        answer = roundAnswers[roundId];
         startedAt = block.timestamp;
         updatedAt = block.timestamp;
         answeredInRound = roundId;
@@ -35,8 +37,8 @@ contract EtherPriceFeedMock is Ownable, AggregatorV3Interface {
         view
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        roundId = uint80(_latestRoundId);
-        answer = _answers[roundId];
+        roundId = uint80(latestRoundId);
+        answer = roundAnswers[roundId];
         startedAt = block.timestamp;
         updatedAt = block.timestamp;
         answeredInRound = roundId;
