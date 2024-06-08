@@ -14,7 +14,8 @@ type Vesting = [bigint, bigint];
 describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
     const roundId = 1n;
-    const roundDuration = 60n;
+    const roundDuration = 60n; // 1 minute
+    const vestingDuration = 24n * 60n * 60n; // 1 day
     const roundPrice = 200n; // 0.02 LEAD/USD
     const minSaleTokenAmount = ethers.parseUnits("5000", 18); // 5,000 LEAD
     const minSaleTokenPartialAmount = minSaleTokenAmount / 4n;
@@ -54,6 +55,7 @@ describe("BulletLastPresale", function () {
             etherPriceFeedMockAddress,
             usdtTokenMockAddress,
             treasury.address,
+            vestingDuration,
         ]);
         const bulletLastPresaleAddress = await bulletLastPresale.getAddress();
 
@@ -88,7 +90,7 @@ describe("BulletLastPresale", function () {
 
     describe("Deploy the contract", function () {
         describe("Validations", function () {
-            it("Should revert with the right error if passing the zero vesting token address", async function () {
+            it("Should revert with the right error if passing the zero sale token address", async function () {
                 const {
                     bulletLastPresale,
                     etherPriceFeedMockAddress,
@@ -102,6 +104,7 @@ describe("BulletLastPresale", function () {
                     etherPriceFeedMockAddress,
                     usdtTokenMockAddress,
                     treasury.address,
+                    vestingDuration,
                 ]);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroSaleToken")
@@ -150,6 +153,13 @@ describe("BulletLastPresale", function () {
 
                 const currentTreasuryAddress: string = await bulletLastPresale.treasury();
                 expect(currentTreasuryAddress).to.equal(treasury.address);
+            });
+
+            it("Should return the right vesting duration", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const currentVestingDuration: bigint = await bulletLastPresale.vestingDuration();
+                expect(currentVestingDuration).to.equal(vestingDuration);
             });
         });
     });
@@ -593,7 +603,6 @@ describe("BulletLastPresale", function () {
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
-                const vestingDuration: bigint = await bulletLastPresale.VESTING_DURATION();
 
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
@@ -730,7 +739,6 @@ describe("BulletLastPresale", function () {
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
-                const vestingDuration: bigint = await bulletLastPresale.VESTING_DURATION();
 
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);

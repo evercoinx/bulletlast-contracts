@@ -25,7 +25,6 @@ contract BulletLastPresale is
 
     bytes32 public constant VERSION = "1.0.0";
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
-    uint64 public constant VESTING_DURATION = 30 days;
 
     uint256 private constant _MIN_ETHER_BUY_AMOUNT = 4 * 10 ** 16;
     uint256 private constant _MAX_ETHER_BUY_AMOUNT = 40 * 100 ** 16;
@@ -38,6 +37,7 @@ contract BulletLastPresale is
     AggregatorV3Interface public etherPriceFeed;
     IERC20 public usdtToken;
     address public treasury;
+    uint64 public vestingDuration;
     mapping(uint256 roundId => Round round) public rounds;
     uint16[] public roundIds;
     mapping(address user => mapping(uint256 roundId => Vesting[_VESTING_CLIFFS] vesting)) public userVestings;
@@ -51,7 +51,8 @@ contract BulletLastPresale is
         address saleToken_,
         address etherPriceFeed_,
         address usdtToken_,
-        address treasury_
+        address treasury_,
+        uint64 vestingDuration_
     ) external initializer {
         ContextUpgradeable.__Context_init();
         AccessControlUpgradeable.__AccessControl_init();
@@ -78,6 +79,11 @@ contract BulletLastPresale is
             revert ZeroTreasury();
         }
         treasury = treasury_;
+
+        if (vestingDuration_ == 0) {
+            revert ZeroVestingDuration();
+        }
+        vestingDuration = vestingDuration_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ROUND_MANAGER_ROLE, _msgSender());
@@ -236,7 +242,7 @@ contract BulletLastPresale is
         Vesting[_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][round.id];
 
         for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
-            uint64 cliff = uint64(i + 1) * VESTING_DURATION;
+            uint64 cliff = uint64(i + 1) * vestingDuration;
             uint64 startTime = round.startTime + cliff;
 
             if (vestings[i].startTime > 0) {

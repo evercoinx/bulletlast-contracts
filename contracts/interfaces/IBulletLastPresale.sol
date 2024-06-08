@@ -34,6 +34,8 @@ interface IBulletLastPresale {
 
     error ZeroTreasury();
 
+    error ZeroVestingDuration();
+
     error ZeroPrice();
 
     error ZeroActiveRoundId();
