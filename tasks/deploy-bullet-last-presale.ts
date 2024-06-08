@@ -8,6 +8,7 @@ interface TaskParams {
     etherPriceFeed: string;
     usdtToken: string;
     treasury: string;
+    vestingDuration: number;
 }
 
 task("deploy:bullet-last-presale")
@@ -21,6 +22,7 @@ task("deploy:bullet-last-presale")
     )
     .addParam<string>("usdtToken", "USDT token address", undefined, types.string)
     .addParam<string>("treasury", "Treasury address", undefined, types.string)
+    .addParam<number>("vestingDuration", "Vesting duration (in seconds)", undefined, types.int)
     .setAction(
         async (
             {
@@ -28,6 +30,7 @@ task("deploy:bullet-last-presale")
                 etherPriceFeed: etherPriceFeedAddress,
                 usdtToken: usdtTokenAddress,
                 treasury: treasuryAddress,
+                vestingDuration,
             }: TaskParams,
             { ethers, network, run, upgrades }
         ) => {
@@ -42,6 +45,9 @@ task("deploy:bullet-last-presale")
             }
             if (!ethers.isAddress(treasuryAddress)) {
                 throw new Error("Invalid treasury address");
+            }
+            if (vestingDuration === 0) {
+                throw new Error("Zero vesting duration");
             }
 
             const networkName = network.name as Network;
@@ -62,6 +68,7 @@ task("deploy:bullet-last-presale")
                 etherPriceFeedAddress,
                 usdtTokenAddress,
                 treasuryAddress,
+                vestingDuration,
             ]);
             await bulletLastPresale.waitForDeployment();
 
