@@ -39,6 +39,7 @@ contract BulletLastPresale is
     IERC20 public usdtToken;
     address public treasury;
     mapping(uint256 roundId => Round round) public rounds;
+    uint16[] public roundIds;
     mapping(address user => mapping(uint256 roundId => Vesting[_VESTING_CLIFFS] vesting)) public userVestings;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -122,6 +123,7 @@ contract BulletLastPresale is
         }
 
         rounds[id] = Round({ id: id, startTime: startTime, endTime: endTime, price: price });
+        roundIds.push(id);
         emit RoundCreated(id, startTime, endTime, price);
     }
 
@@ -175,39 +177,49 @@ contract BulletLastPresale is
         emit BoughtWithUSDT(_msgSender(), activeRound.id, amount, usdtAmount);
     }
 
-    function claim(address user, uint16 roundId) external nonReentrant whenNotPaused {
+    function claim(address user) external nonReentrant whenNotPaused {
         uint256 claimableAmount = 0;
-        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][roundId];
+        uint256 roundIdCount = roundIds.length;
 
-        for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
-            Vesting storage vesting = vestings[i];
-            if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
-                claimableAmount += vesting.amount;
-                vesting.amount = 0;
+        for (uint256 i = 0; i < roundIdCount; i++) {
+            uint256 roundId = roundIds[i];
+            Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][roundId];
+
+            for (uint256 j = 0; j < _VESTING_CLIFFS; j++) {
+                Vesting storage vesting = vestings[j];
+                if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
+                    claimableAmount += vesting.amount;
+                    vesting.amount = 0;
+                }
             }
         }
 
         if (claimableAmount == 0) {
-            revert ZeroClaimableAmount(user, roundId);
+            revert ZeroClaimableAmount(user);
         }
 
         saleToken.safeTransferFrom(treasury, user, claimableAmount);
 
-        emit Claimed(user, roundId, claimableAmount);
+        emit Claimed(user, claimableAmount);
     }
 
     function getActiveRound() external view returns (Round memory) {
         return _getActiveRound();
     }
 
-    function getClaimableAmount(address user, uint16 roundId) external view returns (uint256) {
+    function getClaimableAmount(address user) external view returns (uint256) {
         uint256 claimableAmount = 0;
-        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][roundId];
+        uint256 roundIdCount = roundIds.length;
 
-        for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
-            Vesting storage vesting = vestings[i];
-            if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
-                claimableAmount += vesting.amount;
+        for (uint256 i = 0; i < roundIdCount; i++) {
+            uint256 roundId = roundIds[i];
+            Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][roundId];
+
+            for (uint256 j = 0; j < _VESTING_CLIFFS; j++) {
+                Vesting storage vesting = vestings[j];
+                if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
+                    claimableAmount += vesting.amount;
+                }
             }
         }
 

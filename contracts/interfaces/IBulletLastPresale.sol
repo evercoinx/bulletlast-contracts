@@ -24,7 +24,7 @@ interface IBulletLastPresale {
 
     event BoughtWithUSDT(address indexed user, uint256 indexed roundId, uint256 amount, uint256 usdtAmount);
 
-    event Claimed(address indexed user, uint256 indexed roundId, uint256 amount);
+    event Claimed(address indexed user, uint256 amount);
 
     error ZeroSaleToken();
 
@@ -56,7 +56,7 @@ interface IBulletLastPresale {
 
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
-    error ZeroClaimableAmount(address user, uint256 amount);
+    error ZeroClaimableAmount(address user);
 
     error EtherTransferFailed(address to, uint256 amount);
 
@@ -74,11 +74,11 @@ interface IBulletLastPresale {
 
     function buyWithUSDT(uint256 amount) external;
 
-    function claim(address user, uint16 roundId) external;
+    function claim(address user) external;
 
     function getActiveRound() external view returns (Round memory);
 
-    function getClaimableAmount(address user, uint16 roundId) external view returns (uint256);
+    function getClaimableAmount(address user) external view returns (uint256);
 
     function getLatestEtherPrice() external view returns (uint256);
 }

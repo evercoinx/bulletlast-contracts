@@ -625,8 +625,7 @@ describe("BulletLastPresale", function () {
                     { value: minEtherAmount }
                 );
                 const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address,
-                    roundId
+                    buyer.address
                 );
                 expect(claimableAmount).to.equal(0n);
 
@@ -638,8 +637,7 @@ describe("BulletLastPresale", function () {
                     );
                     await time.increaseTo(currentStartTime);
                     const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                        buyer.address,
-                        roundId
+                        buyer.address
                     );
                     expect(claimableAmount).to.equal(minSaleTokenPartialAmount * (i + 1n));
                 }
@@ -768,8 +766,7 @@ describe("BulletLastPresale", function () {
                 );
 
                 const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address,
-                    roundId
+                    buyer.address
                 );
                 expect(claimableAmount).to.equal(0n);
 
@@ -782,8 +779,7 @@ describe("BulletLastPresale", function () {
                     await time.increaseTo(currentStartTime);
 
                     const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                        buyer.address,
-                        roundId
+                        buyer.address
                     );
                     expect(claimableAmount).to.equal(minSaleTokenPartialAmount * (i + 1n));
                 }
@@ -815,10 +811,10 @@ describe("BulletLastPresale", function () {
                 );
                 await time.increaseTo(currentStartTime - 2n);
 
-                const promise = bulletLastPresale.claim(buyer.address, roundId);
+                const promise = bulletLastPresale.claim(buyer.address);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
-                    .withArgs(buyer.address, roundId);
+                    .withArgs(buyer.address);
             });
 
             it("Should return the right error if claiming the same vesting period twice", async function () {
@@ -843,12 +839,12 @@ describe("BulletLastPresale", function () {
                 );
                 await time.increaseTo(currentStartTime);
 
-                await bulletLastPresale.claim(buyer.address, roundId);
+                await bulletLastPresale.claim(buyer.address);
 
-                const promise = bulletLastPresale.claim(buyer.address, roundId);
+                const promise = bulletLastPresale.claim(buyer.address);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
-                    .withArgs(buyer.address, roundId);
+                    .withArgs(buyer.address);
             });
         });
 
@@ -876,14 +872,13 @@ describe("BulletLastPresale", function () {
                 await time.increaseTo(currentStartTime);
 
                 const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address,
-                    roundId
+                    buyer.address
                 );
 
-                const promise = bulletLastPresale.claim(buyer.address, roundId);
+                const promise = bulletLastPresale.claim(buyer.address);
                 await expect(promise)
                     .to.emit(bulletLastPresale, "Claimed")
-                    .withArgs(buyer.address, roundId, claimableAmount);
+                    .withArgs(buyer.address, claimableAmount);
             });
         });
 
@@ -911,14 +906,12 @@ describe("BulletLastPresale", function () {
                 await time.increaseTo(currentStartTime);
 
                 const initialClaimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address,
-                    roundId
+                    buyer.address
                 );
-                await bulletLastPresale.claim(buyer.address, roundId);
+                await bulletLastPresale.claim(buyer.address);
 
                 const currentClaimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address,
-                    roundId
+                    buyer.address
                 );
                 expect(currentClaimableAmount).not.to.equal(initialClaimableAmount);
                 expect(currentClaimableAmount).to.equal(0n);
