@@ -3,7 +3,6 @@ pragma solidity 0.8.22;
 
 interface IBulletLastPresale {
     struct Round {
-        uint16 id;
         uint64 startTime;
         uint64 endTime;
         uint16 price;
@@ -18,7 +17,9 @@ interface IBulletLastPresale {
 
     event ActiveRoundIdSet(uint256 activeRoundId);
 
-    event RoundCreated(uint16 id, uint64 startTime, uint64 endTime, uint16 price);
+    event RoundCreated(uint8 id, uint64 startTime, uint64 endTime, uint16 price);
+
+    event RoundUpdated(uint8 id, uint64 startTime, uint64 endTime, uint16 price);
 
     event BoughtWithEther(address indexed user, uint256 indexed roundId, uint256 amount, uint256 etherAmount);
 
@@ -40,11 +41,15 @@ interface IBulletLastPresale {
 
     error ZeroActiveRoundId();
 
+    error ZeroRoundId();
+
     error ActiveRoundNotFound();
 
-    error ActiveRoundIdAlreadySet(uint256 activeRoundId);
+    error InvalidActiveRoundId(uint256 activeRoundId);
 
     error InvalidTimePeriod(uint256 startTime, uint256 endTime);
+
+    error RoundAlreadyExists(uint256 roundId);
 
     error TooLowEtherBuyAmount(uint256 amount);
 
@@ -68,9 +73,9 @@ interface IBulletLastPresale {
 
     function setTreasury(address treasury) external;
 
-    function setActiveRoundId(uint16 activeRoundId) external;
+    function setActiveRoundId(uint8 activeRoundId) external;
 
-    function createRound(uint16 id, uint64 startTime, uint64 endTime, uint16 price) external;
+    function createRound(uint8 id, uint64 startTime, uint64 endTime, uint16 price) external;
 
     function buyWithEther(uint256 amount) external payable;
 

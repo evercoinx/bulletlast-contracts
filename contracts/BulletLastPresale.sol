@@ -32,14 +32,14 @@ contract BulletLastPresale is
     uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** 6;
     uint8 private constant _VESTING_CLIFFS = 3;
 
-    uint16 public activeRoundId;
+    uint8 public activeRoundId;
+    uint64 public vestingDuration;
     IERC20 public saleToken;
     AggregatorV3Interface public etherPriceFeed;
     IERC20 public usdtToken;
     address public treasury;
-    uint64 public vestingDuration;
     mapping(uint256 roundId => Round round) public rounds;
-    uint16[] public roundIds;
+    uint8[] public roundIds;
     mapping(address user => mapping(uint256 roundId => Vesting[_VESTING_CLIFFS] vesting)) public userVestings;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -106,9 +106,9 @@ contract BulletLastPresale is
         emit TreasurySet(treasury_);
     }
 
-    function setActiveRoundId(uint16 activeRoundId_) external onlyRole(ROUND_MANAGER_ROLE) {
-        if (activeRoundId_ == activeRoundId) {
-            revert ActiveRoundIdAlreadySet(activeRoundId_);
+    function setActiveRoundId(uint8 activeRoundId_) external onlyRole(ROUND_MANAGER_ROLE) {
+        if (activeRoundId_ == 0 || activeRoundId_ == activeRoundId) {
+            revert InvalidActiveRoundId(activeRoundId_);
         }
 
         activeRoundId = activeRoundId_;
@@ -116,11 +116,14 @@ contract BulletLastPresale is
     }
 
     function createRound(
-        uint16 id,
+        uint8 id,
         uint64 startTime,
         uint64 endTime,
         uint16 price
     ) external onlyRole(ROUND_MANAGER_ROLE) {
+        if (id == 0) {
+            revert ZeroRoundId();
+        }
         if (startTime == 0 || endTime == 0 || startTime >= endTime) {
             revert InvalidTimePeriod(startTime, endTime);
         }
@@ -128,8 +131,19 @@ contract BulletLastPresale is
             revert ZeroPrice();
         }
 
-        rounds[id] = Round({ id: id, startTime: startTime, endTime: endTime, price: price });
+        Round storage round = rounds[id];
+        if (round.price > 0) {
+            round.startTime = startTime;
+            round.endTime = endTime;
+            round.price = price;
+
+            emit RoundUpdated(id, startTime, endTime, price);
+            return;
+        }
+
+        rounds[id] = Round({ startTime: startTime, endTime: endTime, price: price });
         roundIds.push(id);
+
         emit RoundCreated(id, startTime, endTime, price);
     }
 
@@ -159,7 +173,7 @@ contract BulletLastPresale is
             _sendEther(_msgSender(), excesses);
         }
 
-        emit BoughtWithEther(_msgSender(), activeRound.id, amount, etherAmount);
+        emit BoughtWithEther(_msgSender(), activeRoundId, amount, etherAmount);
     }
 
     function buyWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
@@ -180,7 +194,7 @@ contract BulletLastPresale is
 
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
 
-        emit BoughtWithUSDT(_msgSender(), activeRound.id, amount, usdtAmount);
+        emit BoughtWithUSDT(_msgSender(), activeRoundId, amount, usdtAmount);
     }
 
     function claim(address user) external nonReentrant whenNotPaused {
@@ -239,7 +253,7 @@ contract BulletLastPresale is
 
     function _handleUserVesting(address user, Round storage round, uint256 amount) private {
         uint256 vestingAmount = amount / (_VESTING_CLIFFS + 1);
-        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][round.id];
+        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][activeRoundId];
 
         for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
             uint64 cliff = uint64(i + 1) * vestingDuration;

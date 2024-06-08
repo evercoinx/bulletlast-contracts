@@ -8,7 +8,7 @@ import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { BulletLastPresale, BulletLastToken } from "../typechain-types";
 
-type Round = [bigint, bigint, bigint, bigint];
+type Round = [bigint, bigint, bigint];
 type Vesting = [bigint, bigint];
 
 describe("BulletLastPresale", function () {
@@ -110,6 +110,91 @@ describe("BulletLastPresale", function () {
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroSaleToken")
                     .withArgs();
             });
+
+            it("Should revert with the right error if passing the zero Ether price feed address", async function () {
+                const {
+                    bulletLastPresale,
+                    bulletLastTokenAddress,
+                    usdtTokenMockAddress,
+                    treasury,
+                } = await loadFixture(deployFixture);
+
+                const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
+                const promise = upgrades.deployProxy(BulletLastPresale, [
+                    bulletLastTokenAddress,
+                    ethers.ZeroAddress,
+                    usdtTokenMockAddress,
+                    treasury.address,
+                    vestingDuration,
+                ]);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroPriceFeed")
+                    .withArgs();
+            });
+
+            it("Should revert with the right error if passing the zero USDT token address", async function () {
+                const {
+                    bulletLastPresale,
+                    bulletLastTokenAddress,
+                    etherPriceFeedMockAddress,
+                    treasury,
+                } = await loadFixture(deployFixture);
+
+                const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
+                const promise = upgrades.deployProxy(BulletLastPresale, [
+                    bulletLastTokenAddress,
+                    etherPriceFeedMockAddress,
+                    ethers.ZeroAddress,
+                    treasury.address,
+                    vestingDuration,
+                ]);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroUSDTToken")
+                    .withArgs();
+            });
+
+            it("Should revert with the right error if passing the zero treasury address", async function () {
+                const {
+                    bulletLastPresale,
+                    bulletLastTokenAddress,
+                    etherPriceFeedMockAddress,
+                    usdtTokenMockAddress,
+                } = await loadFixture(deployFixture);
+
+                const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
+                const promise = upgrades.deployProxy(BulletLastPresale, [
+                    bulletLastTokenAddress,
+                    etherPriceFeedMockAddress,
+                    usdtTokenMockAddress,
+                    ethers.ZeroAddress,
+                    vestingDuration,
+                ]);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroTreasury")
+                    .withArgs();
+            });
+
+            it("Should revert with the right error if passing the zero vesting duration", async function () {
+                const {
+                    bulletLastPresale,
+                    bulletLastTokenAddress,
+                    etherPriceFeedMockAddress,
+                    usdtTokenMockAddress,
+                    treasury,
+                } = await loadFixture(deployFixture);
+
+                const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
+                const promise = upgrades.deployProxy(BulletLastPresale, [
+                    bulletLastTokenAddress,
+                    etherPriceFeedMockAddress,
+                    usdtTokenMockAddress,
+                    treasury.address,
+                    0n,
+                ]);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroVestingDuration")
+                    .withArgs();
+            });
         });
 
         describe("Checks", function () {
@@ -131,7 +216,7 @@ describe("BulletLastPresale", function () {
                 expect(hasDefaultAdminRole).to.be.true;
             });
 
-            it("Should return the right admin role managing the  manager role", async function () {
+            it("Should return the right admin role managing the round manager role", async function () {
                 const { bulletLastPresale, defaultAdminRole, roundManagerRole } =
                     await loadFixture(deployFixture);
 
@@ -146,6 +231,22 @@ describe("BulletLastPresale", function () {
 
                 const currentSaleTokenAddress: string = await bulletLastPresale.saleToken();
                 expect(currentSaleTokenAddress).to.equal(bulletLastTokenAddress);
+            });
+
+            it("Should return the right Ether price feed address", async function () {
+                const { bulletLastPresale, etherPriceFeedMockAddress } =
+                    await loadFixture(deployFixture);
+
+                const currentEtherPriceFeedAddress: string =
+                    await bulletLastPresale.etherPriceFeed();
+                expect(currentEtherPriceFeedAddress).to.equal(etherPriceFeedMockAddress);
+            });
+
+            it("Should return the right USDT token address", async function () {
+                const { bulletLastPresale, usdtTokenMock } = await loadFixture(deployFixture);
+
+                const currentUSDTTokenAddress: string = await bulletLastPresale.usdtToken();
+                expect(currentUSDTTokenAddress).to.equal(usdtTokenMock);
             });
 
             it("Should return the right treasury address", async function () {
@@ -216,6 +317,25 @@ describe("BulletLastPresale", function () {
                 const promise = executor.sendTransaction({
                     to: bulletLastPresaleAddress,
                     data: "0x01",
+                });
+                await expect(promise).to.be.revertedWithoutReason();
+            });
+
+            it("Should revert without a reason if sending some native token amount", async function () {
+                const { bulletLastPresaleAddress, executor } = await loadFixture(deployFixture);
+
+                const promise = executor.sendTransaction({
+                    to: bulletLastPresaleAddress,
+                    value: 1n,
+                });
+                await expect(promise).to.be.revertedWithoutReason();
+            });
+
+            it("Should revert without a reason if sending no native token amount", async function () {
+                const { bulletLastPresaleAddress, executor } = await loadFixture(deployFixture);
+
+                const promise = executor.sendTransaction({
+                    to: bulletLastPresaleAddress,
                 });
                 await expect(promise).to.be.revertedWithoutReason();
             });
@@ -499,43 +619,328 @@ describe("BulletLastPresale", function () {
         });
     });
 
-    describe("Create a round", function () {
-        describe("Validations", function () {});
+    describe("Set the active round id", function () {
+        const activeRoundId = 255n;
+
+        describe("Validations", function () {
+            it("Should revert with the right error if called by a non admin", async () => {
+                const { bulletLastPresale, executor, roundManagerRole } =
+                    await loadFixture(deployFixture);
+
+                const promise = (
+                    bulletLastPresale.connect(executor) as BulletLastPresale
+                ).setActiveRoundId(activeRoundId);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(
+                        bulletLastPresale,
+                        "AccessControlUnauthorizedAccount"
+                    )
+                    .withArgs(executor.address, roundManagerRole);
+            });
+
+            it("Should revert with the right error if setting the zero active round id", async () => {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const activeRoundId = 0n;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).setActiveRoundId(activeRoundId);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidActiveRoundId")
+                    .withArgs(activeRoundId);
+            });
+
+            it("Should revert with the right error if setting the same active round id", async () => {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                await (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).setActiveRoundId(activeRoundId);
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).setActiveRoundId(activeRoundId);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidActiveRoundId")
+                    .withArgs(activeRoundId);
+            });
+        });
 
         describe("Events", function () {
-            it("Should emit the RoundCreated event", async function () {
+            it("Should emit the ActiveRoundIdSet event", async () => {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).setActiveRoundId(activeRoundId);
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "ActiveRoundIdSet")
+                    .withArgs(activeRoundId);
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right active round id", async () => {
                 const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const initialActiveRoundId: bigint = await bulletLastPresale.activeRoundId();
+
+                await bulletLastPresale.setActiveRoundId(activeRoundId);
+
+                const currentActiveRoundId = await bulletLastPresale.activeRoundId();
+                expect(currentActiveRoundId).not.to.equal(initialActiveRoundId);
+                expect(currentActiveRoundId).to.equal(activeRoundId);
+            });
+        });
+    });
+
+    describe("Create a round", function () {
+        describe("Validations", function () {
+            it("Should revert with the right error if called by a non admin", async function () {
+                const { bulletLastPresale, executor, roundManagerRole } =
+                    await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
 
-                const promise = bulletLastPresale.createRound(
+                const promise = (
+                    bulletLastPresale.connect(executor) as BulletLastPresale
+                ).createRound(roundId, startTime, endTime, roundPrice);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(
+                        bulletLastPresale,
+                        "AccessControlUnauthorizedAccount"
+                    )
+                    .withArgs(executor.address, roundManagerRole);
+            });
+
+            it("Should revert with the right error if passing the zero round id", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(0n, startTime, endTime, roundPrice);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroRoundId")
+                    .withArgs();
+            });
+
+            it("Should revert with the right error if passing the zero start time", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(roundId, 0n, endTime, roundPrice);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidTimePeriod")
+                    .withArgs(0n, endTime);
+            });
+
+            it("Should revert with the right error if passing the zero end time", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(roundId, startTime, 0n, roundPrice);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidTimePeriod")
+                    .withArgs(startTime, 0n);
+            });
+
+            it("Should revert with the right error if passing the end time equal to the start time", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(roundId, startTime, endTime, roundPrice);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidTimePeriod")
+                    .withArgs(startTime, endTime);
+            });
+
+            it("Should revert with the right error if passing the end time higher than the start time", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime - 1n;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(roundId, startTime, endTime, roundPrice);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidTimePeriod")
+                    .withArgs(startTime, endTime);
+            });
+
+            it("Should revert with the right error if passing the zero price", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(roundId, startTime, endTime, 0n);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "ZeroPrice")
+                    .withArgs();
+            });
+        });
+
+        describe("Events", function () {
+            it("Should emit the RoundCreated event", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(roundId, startTime, endTime, roundPrice);
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "RoundCreated")
+                    .withArgs(roundId, startTime, endTime, roundPrice);
+            });
+
+            it("Should emit the RoundUpdated event", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const initialStartTime = BigInt(await time.latest());
+                const initialEndTime = initialStartTime + roundDuration;
+                const initialRoundPrice = roundPrice;
+
+                await (bulletLastPresale.connect(roundManager) as BulletLastPresale).createRound(
+                    roundId,
+                    initialStartTime,
+                    initialEndTime,
+                    initialRoundPrice
+                );
+
+                const newStartTime = initialStartTime + 1n;
+                const newEndTime = initialEndTime + 1n;
+                const newRoundPrice = initialRoundPrice + 1n;
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).createRound(roundId, newStartTime, newEndTime, newRoundPrice);
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "RoundUpdated")
+                    .withArgs(roundId, newStartTime, newEndTime, newRoundPrice);
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right round if creating a new round", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await (bulletLastPresale.connect(roundManager) as BulletLastPresale).createRound(
                     roundId,
                     startTime,
                     endTime,
                     roundPrice
                 );
-                await expect(promise)
-                    .to.emit(bulletLastPresale, "RoundCreated")
-                    .withArgs(roundId, startTime, endTime, roundPrice);
-            });
-        });
 
-        describe("Checks", function () {
-            it("Should return the right round", async function () {
-                const { bulletLastPresale } = await loadFixture(deployFixture);
+                const [currentStartTime, currentEndTime, currentPrice]: Round =
+                    await bulletLastPresale.rounds(roundId);
+                expect(currentStartTime).to.equal(startTime);
+                expect(currentEndTime).to.equal(endTime);
+                expect(currentPrice).to.equal(roundPrice);
+            });
+
+            it("Should return the right round if updating an existing round", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const initialStartTime = BigInt(await time.latest());
+                const initialEndTime = initialStartTime + roundDuration;
+                const initialRoundPrice = roundPrice;
+
+                await (bulletLastPresale.connect(roundManager) as BulletLastPresale).createRound(
+                    roundId,
+                    initialStartTime,
+                    initialEndTime,
+                    initialRoundPrice
+                );
+
+                const newStartTime = initialStartTime + 1n;
+                const newEndTime = initialEndTime + 1n;
+                const newRoundPrice = initialRoundPrice + 1n;
+
+                await bulletLastPresale.createRound(
+                    roundId,
+                    newStartTime,
+                    newEndTime,
+                    newRoundPrice
+                );
+
+                const [currentStartTime, currentEndTime, currentPrice]: Round =
+                    await bulletLastPresale.rounds(roundId);
+                expect(currentStartTime).not.to.equal(initialStartTime);
+                expect(currentStartTime).to.equal(newStartTime);
+                expect(currentEndTime).not.to.equal(initialEndTime);
+                expect(currentEndTime).to.equal(newEndTime);
+                expect(currentPrice).not.to.equal(initialRoundPrice);
+                expect(currentPrice).to.equal(newRoundPrice);
+            });
+
+            it("Should return the right round id if creating a new round", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
 
-                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await (bulletLastPresale.connect(roundManager) as BulletLastPresale).createRound(
+                    roundId,
+                    startTime,
+                    endTime,
+                    roundPrice
+                );
 
-                const [currentRoundId, currentStartTime, currentEndTime, currentPrice]: Round =
-                    await bulletLastPresale.rounds(roundId);
+                const currentRoundId: bigint = await bulletLastPresale.roundIds(0n);
                 expect(currentRoundId).to.equal(roundId);
-                expect(currentStartTime).to.equal(startTime);
-                expect(currentEndTime).to.equal(endTime);
-                expect(currentPrice).to.equal(roundPrice);
+            });
+
+            it("Should return the right round id if updating an existing round", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const initialStartTime = BigInt(await time.latest());
+                const initialEndTime = initialStartTime + roundDuration;
+                const initialRoundPrice = roundPrice;
+
+                await (bulletLastPresale.connect(roundManager) as BulletLastPresale).createRound(
+                    roundId,
+                    initialStartTime,
+                    initialEndTime,
+                    initialRoundPrice
+                );
+
+                const newStartTime = initialStartTime + 1n;
+                const newEndTime = initialEndTime + 1n;
+                const newRoundPrice = initialRoundPrice + 1n;
+
+                await bulletLastPresale.createRound(
+                    roundId,
+                    newStartTime,
+                    newEndTime,
+                    newRoundPrice
+                );
+
+                const currentRoundId: bigint = await bulletLastPresale.roundIds(0n);
+                expect(currentRoundId).to.equal(roundId);
             });
         });
     });
