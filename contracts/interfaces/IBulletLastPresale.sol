@@ -44,6 +44,10 @@ interface IBulletLastPresale {
 
     error InvalidTimePeriod(uint256 startTime, uint256 endTime);
 
+    error TooLowEtherBuyAmount(uint256 amount);
+
+    error TooHighEtherBuyAmount(uint256 amount);
+
     error TooLowUSDTBuyAmount(uint256 amount);
 
     error TooHighUSDTBuyAmount(uint256 amount);

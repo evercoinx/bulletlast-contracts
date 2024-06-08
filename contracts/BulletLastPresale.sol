@@ -27,10 +27,11 @@ contract BulletLastPresale is
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
     uint64 public constant VESTING_DURATION = 30 days;
 
-    uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** _USDT_TOKEN_DECIMALS;
-    uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** _USDT_TOKEN_DECIMALS;
+    uint256 private constant _MIN_ETHER_BUY_AMOUNT = 4 * 10 ** 16;
+    uint256 private constant _MAX_ETHER_BUY_AMOUNT = 40 * 100 ** 16;
+    uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** 6;
+    uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** 6;
     uint8 private constant _VESTING_CLIFFS = 3;
-    uint8 private constant _USDT_TOKEN_DECIMALS = 6;
 
     uint16 public activeRoundId;
     IERC20 public saleToken;
@@ -130,7 +131,13 @@ contract BulletLastPresale is
             revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
         }
 
-        uint256 etherAmount = (amount * activeRound.price * 1 ether) / getLatestEtherPrice();
+        uint256 etherAmount = (amount * activeRound.price * 10 ** 14) / getLatestEtherPrice();
+        if (etherAmount < _MIN_ETHER_BUY_AMOUNT) {
+            revert TooLowEtherBuyAmount(etherAmount);
+        }
+        if (etherAmount > _MAX_ETHER_BUY_AMOUNT) {
+            revert TooHighEtherBuyAmount(etherAmount);
+        }
         if (etherAmount > msg.value) {
             revert InsufficientEtherAmount(etherAmount, msg.value);
         }
@@ -153,7 +160,7 @@ contract BulletLastPresale is
             revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
         }
 
-        uint256 usdtAmount = (amount * activeRound.price) / (10 ** 16);
+        uint256 usdtAmount = (amount * activeRound.price) / 10 ** 16;
         if (usdtAmount < _MIN_USDT_BUY_AMOUNT) {
             revert TooLowUSDTBuyAmount(usdtAmount);
         }
