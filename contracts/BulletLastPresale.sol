@@ -26,6 +26,7 @@ contract BulletLastPresale is
     bytes32 public constant VERSION = "1.0.0";
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
 
+    // slither-disable-next-line similar-names
     uint256 private constant _MIN_ETHER_BUY_AMOUNT = 4 * 10 ** 16;
     uint256 private constant _MAX_ETHER_BUY_AMOUNT = 40 * 10 ** 16;
     uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** 6;
@@ -41,6 +42,7 @@ contract BulletLastPresale is
     address public treasury;
     mapping(uint256 roundId => Round round) public rounds;
     uint8[] public roundIds;
+    // slither-disable-next-line uninitialized-state
     mapping(address user => mapping(uint256 roundId => Vesting[_VESTING_CLIFFS] vesting)) public userVestings;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -155,6 +157,7 @@ contract BulletLastPresale is
 
     function buyWithEther(uint256 amount) external payable nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
+        // slither-disable-next-line timestamp
         if (block.timestamp < activeRound.startTime || block.timestamp > activeRound.endTime) {
             revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
         }
@@ -184,6 +187,7 @@ contract BulletLastPresale is
 
     function buyWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
         Round storage activeRound = _getActiveRound();
+        // slither-disable-next-line timestamp
         if (block.timestamp < activeRound.startTime || block.timestamp > activeRound.endTime) {
             revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
         }
@@ -212,6 +216,7 @@ contract BulletLastPresale is
 
             for (uint256 j = 0; j < _VESTING_CLIFFS; j++) {
                 Vesting storage vesting = vestings[j];
+                // slither-disable-next-line timestamp
                 if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
                     claimableAmount += vesting.amount;
                     vesting.amount = 0;
@@ -223,6 +228,7 @@ contract BulletLastPresale is
             revert ZeroClaimableAmount(_msgSender());
         }
 
+        // slither-disable-next-line arbitrary-send-erc20
         saleToken.safeTransferFrom(treasury, _msgSender(), claimableAmount);
         emit Claimed(_msgSender(), claimableAmount);
     }
@@ -241,6 +247,7 @@ contract BulletLastPresale is
 
             for (uint256 j = 0; j < _VESTING_CLIFFS; j++) {
                 Vesting storage vesting = vestings[j];
+                // slither-disable-next-line timestamp
                 if (vesting.amount > 0 && block.timestamp >= vesting.startTime) {
                     claimableAmount += vesting.amount;
                 }
@@ -251,6 +258,7 @@ contract BulletLastPresale is
     }
 
     function getLatestEtherPrice() public view returns (uint256) {
+        // slither-disable-next-line unused-return
         (, int256 price, , , ) = etherPriceFeed.latestRoundData();
         return uint256(price) * 10 ** 10;
     }
@@ -261,6 +269,7 @@ contract BulletLastPresale is
         }
         allocatedAmount -= amount;
 
+        // slither-disable-next-line divide-before-multiply
         uint256 vestingPartialAmount = amount / (_VESTING_CLIFFS + 1);
         Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][activeRoundId];
 
@@ -276,15 +285,18 @@ contract BulletLastPresale is
         }
 
         uint256 transferAmount = amount - vestingPartialAmount * _VESTING_CLIFFS;
+        // slither-disable-next-line arbitrary-send-erc20
         saleToken.safeTransferFrom(treasury, user, transferAmount);
     }
 
     function _sendEther(address to, uint256 amount) private {
-        // solhint-disable-next-line avoid-low-level-calls
+        /* solhint-disable avoid-low-level-calls */
+        // slither-disable-next-line low-level-calls
         (bool success, ) = to.call{ value: amount }("");
         if (!success) {
             revert EtherTransferFailed(to, amount);
         }
+        /* solhint-enable avoid-low-level-calls */
     }
 
     function _getActiveRound() private view returns (Round storage) {
