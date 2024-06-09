@@ -190,10 +190,10 @@ contract BulletLastPresale is
 
         uint256 usdtAmount = (amount * activeRound.price) / 10 ** 16;
         if (usdtAmount < _MIN_USDT_BUY_AMOUNT) {
-            revert TooLowUSDTBuyAmount(usdtAmount);
+            revert TooLowUSDTBuyAmount(usdtAmount, amount);
         }
         if (usdtAmount > _MAX_USDT_BUY_AMOUNT) {
-            revert TooHighUSDTBuyAmount(usdtAmount);
+            revert TooHighUSDTBuyAmount(usdtAmount, amount);
         }
 
         _handleUserVesting(_msgSender(), activeRound, amount);

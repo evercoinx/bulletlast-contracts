@@ -59,9 +59,9 @@ interface IBulletLastPresale {
 
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
-    error TooLowUSDTBuyAmount(uint256 amount);
+    error TooLowUSDTBuyAmount(uint256 usdtAmount, uint256 amount);
 
-    error TooHighUSDTBuyAmount(uint256 amount);
+    error TooHighUSDTBuyAmount(uint256 usdtAmount, uint256 amount);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
 
