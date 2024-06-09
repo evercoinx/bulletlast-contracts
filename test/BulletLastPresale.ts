@@ -1,3 +1,4 @@
+import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import {
     impersonateAccount,
     loadFixture,
@@ -30,7 +31,7 @@ describe("BulletLastPresale", function () {
     ];
 
     async function deployFixture() {
-        const [deployer, executor, grantee, roundManager, buyer] = await ethers.getSigners();
+        const [deployer, executor, grantee, roundManager, user] = await ethers.getSigners();
 
         const treasuryAddress = "0x3951b3a254a4285683abc08e63b2e632a4aa3752";
         await impersonateAccount(treasuryAddress);
@@ -46,7 +47,7 @@ describe("BulletLastPresale", function () {
         const etherPriceFeedMockAddress = await etherPriceFeedMock.getAddress();
 
         const USDTTokenMock = await ethers.getContractFactory("USDTTokenMock");
-        const usdtTokenMock = await USDTTokenMock.deploy(buyer.address, maxUSDTAmount);
+        const usdtTokenMock = await USDTTokenMock.deploy(user.address, maxUSDTAmount);
         const usdtTokenMockAddress = await usdtTokenMock.getAddress();
 
         const BulletLastPresale = await ethers.getContractFactory("BulletLastPresale");
@@ -58,6 +59,10 @@ describe("BulletLastPresale", function () {
             vestingDuration,
         ]);
         const bulletLastPresaleAddress = await bulletLastPresale.getAddress();
+
+        const Reverter = await ethers.getContractFactory("Reverter");
+        const reverter = await Reverter.deploy(bulletLastPresaleAddress);
+        const reverterAddress = await reverter.getAddress();
 
         const defaultAdminRole = await bulletLastPresale.DEFAULT_ADMIN_ROLE();
         const roundManagerRole = await bulletLastPresale.ROUND_MANAGER_ROLE();
@@ -77,12 +82,14 @@ describe("BulletLastPresale", function () {
             etherPriceFeedMockAddress,
             usdtTokenMock,
             usdtTokenMockAddress,
+            reverter,
+            reverterAddress,
             deployer,
             executor,
             grantee,
             roundManager,
             treasury,
-            buyer,
+            user,
             defaultAdminRole,
             roundManagerRole,
         };
@@ -946,11 +953,148 @@ describe("BulletLastPresale", function () {
     });
 
     describe("Buy with Ether", function () {
-        describe("Validations", function () {});
+        describe("Validations", function () {
+            it("Should revert with the right error if having no round", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "RoundNotFound")
+                    .withArgs();
+            });
+
+            it("Should revert with the right error if not reaching the round start", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest()) + 4n;
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidBuyPeriod")
+                    .withArgs(anyValue, startTime, endTime);
+            });
+
+            it("Should revert with the right error if reaching the round end", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await time.increaseTo(endTime);
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InvalidBuyPeriod")
+                    .withArgs(anyValue, startTime, endTime);
+            });
+
+            it("Should revert with the right error if buying amount below the minimum", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const lowSaleTokenAmount = minSaleTokenAmount - 1n;
+                const lowEtherAmount = minEtherAmount - 1n;
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    lowSaleTokenAmount,
+                    { value: lowEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "TooLowEtherBuyAmount")
+                    .withArgs(lowEtherAmount, lowSaleTokenAmount);
+            });
+
+            it("Should revert with the right error if buying amount above the maximum", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const highSaleTokenAmount = maxSaleTokenAmount * 2n;
+                const highEtherAmount = maxEtherAmount * 2n;
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    highSaleTokenAmount,
+                    { value: highEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "TooHighEtherBuyAmount")
+                    .withArgs(highEtherAmount, highSaleTokenAmount);
+            });
+
+            it("Should revert with the right error if passing insufficient Ether amount", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const lowEtherAmount = minEtherAmount - 1n;
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: lowEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InsufficientEtherAmount")
+                    .withArgs(minEtherAmount, lowEtherAmount);
+            });
+
+            it("Should revert with the right error if unable to send Ether to the caller", async function () {
+                const { bulletLastPresale, reverter, reverterAddress } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const highEtherAmount = minEtherAmount + 1n;
+
+                const promise = reverter.buyWithEther(minSaleTokenAmount, {
+                    value: highEtherAmount,
+                });
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "EtherTransferFailed")
+                    .withArgs(reverterAddress, highEtherAmount - minEtherAmount);
+            });
+        });
 
         describe("Events", function () {
             it("Should emit the BoughtWithEther event if buying the minimum amount", async function () {
-                const { bulletLastPresale, buyer } = await loadFixture(deployFixture);
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
@@ -958,16 +1102,17 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                const promise = (
-                    bulletLastPresale.connect(buyer) as BulletLastPresale
-                ).buyWithEther(minSaleTokenAmount, { value: minEtherAmount });
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
                 await expect(promise)
                     .to.emit(bulletLastPresale, "BoughtWithEther")
-                    .withArgs(buyer.address, roundId, minSaleTokenAmount, minEtherAmount);
+                    .withArgs(user.address, roundId, minSaleTokenAmount, minEtherAmount);
             });
 
             it("Should emit the BoughtWithEther event if buying the maximum amount", async function () {
-                const { bulletLastPresale, buyer } = await loadFixture(deployFixture);
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
@@ -975,18 +1120,20 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                const promise = (
-                    bulletLastPresale.connect(buyer) as BulletLastPresale
-                ).buyWithEther(maxSaleTokenAmount, { value: maxEtherAmount });
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    maxSaleTokenAmount,
+                    { value: maxEtherAmount }
+                );
                 await expect(promise)
                     .to.emit(bulletLastPresale, "BoughtWithEther")
-                    .withArgs(buyer.address, roundId, maxSaleTokenAmount, maxEtherAmount);
+                    .withArgs(user.address, roundId, maxSaleTokenAmount, maxEtherAmount);
             });
         });
 
         describe("Checks", function () {
-            it("Should return the right Ether balances", async function () {
-                const { bulletLastPresale, buyer, treasury } = await loadFixture(deployFixture);
+            it("Should return the right Ether and token balances", async function () {
+                const { bulletLastPresale, bulletLastToken, user, treasury } =
+                    await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
@@ -994,17 +1141,44 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                const promise = (
-                    bulletLastPresale.connect(buyer) as BulletLastPresale
-                ).buyWithEther(minSaleTokenAmount, { value: maxEtherAmount });
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
                 await expect(promise).to.changeEtherBalances(
-                    [buyer, treasury, bulletLastPresale],
+                    [user, treasury, bulletLastPresale],
+                    [-minEtherAmount, minEtherAmount, 0n]
+                );
+                await expect(promise).to.changeTokenBalances(
+                    bulletLastToken,
+                    [user, treasury, bulletLastPresale],
+                    [minSaleTokenPartialAmount, -minSaleTokenPartialAmount, 0n]
+                );
+            });
+
+            it("Should return the right Ether balances if sent Ether exceeds", async function () {
+                const { bulletLastPresale, user, treasury } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const highEtherAmount = maxEtherAmount;
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: highEtherAmount }
+                );
+                await expect(promise).to.changeEtherBalances(
+                    [user, treasury, bulletLastPresale],
                     [-minEtherAmount, minEtherAmount, 0n]
                 );
             });
 
             it("Should return the right user vestings", async function () {
-                const { bulletLastPresale, buyer } = await loadFixture(deployFixture);
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
@@ -1012,21 +1186,21 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithEther(
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
                     minSaleTokenAmount,
                     { value: minEtherAmount }
                 );
 
                 for (let i = 0n; i < 3n; i++) {
                     const [currentAmount, currentStartTime]: Vesting =
-                        await bulletLastPresale.userVestings(buyer.address, roundId, i);
+                        await bulletLastPresale.userVestings(user.address, roundId, i);
                     expect(currentAmount).to.equal(minSaleTokenPartialAmount);
                     expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
                 }
             });
 
             it("Should return the right claimable amount if reaching the next vesting period", async function () {
-                const { bulletLastPresale, buyer } = await loadFixture(deployFixture);
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
                 const endTime = startTime + roundDuration;
@@ -1034,24 +1208,24 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithEther(
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
                     minSaleTokenAmount,
                     { value: minEtherAmount }
                 );
                 const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address
+                    user.address
                 );
                 expect(claimableAmount).to.equal(0n);
 
                 for (let i = 0n; i < 3n; i++) {
                     const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
-                        buyer.address,
+                        user.address,
                         roundId,
                         i
                     );
                     await time.increaseTo(currentStartTime);
                     const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                        buyer.address
+                        user.address
                     );
                     expect(claimableAmount).to.equal(minSaleTokenPartialAmount * (i + 1n));
                 }
@@ -1064,7 +1238,7 @@ describe("BulletLastPresale", function () {
 
         describe("Events", function () {
             it("Should emit the BoughtWithUSDT event if buying the minimum amount", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1073,18 +1247,18 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, minUSDTAmount);
 
-                const promise = (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
                 await expect(promise)
                     .to.emit(bulletLastPresale, "BoughtWithUSDT")
-                    .withArgs(buyer.address, roundId, minSaleTokenAmount, minUSDTAmount);
+                    .withArgs(user.address, roundId, minSaleTokenAmount, minUSDTAmount);
             });
 
             it("Should emit the BoughtWithUSDT event if buying the maximum amount", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1093,14 +1267,14 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, maxUSDTAmount);
 
-                const promise = (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     maxSaleTokenAmount
                 );
                 await expect(promise)
                     .to.emit(bulletLastPresale, "BoughtWithUSDT")
-                    .withArgs(buyer.address, roundId, maxSaleTokenAmount, maxUSDTAmount);
+                    .withArgs(user.address, roundId, maxSaleTokenAmount, maxUSDTAmount);
             });
         });
 
@@ -1111,7 +1285,7 @@ describe("BulletLastPresale", function () {
                     bulletLastPresaleAddress,
                     bulletLastToken,
                     usdtTokenMock,
-                    buyer,
+                    user,
                     treasury,
                 } = await loadFixture(deployFixture);
 
@@ -1121,25 +1295,25 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, minUSDTAmount);
 
-                const promise = (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
                 await expect(promise).to.changeTokenBalances(
                     usdtTokenMock,
-                    [buyer, treasury, bulletLastPresale],
+                    [user, treasury, bulletLastPresale],
                     [-minUSDTAmount, minUSDTAmount, 0n]
                 );
                 await expect(promise).to.changeTokenBalances(
                     bulletLastToken,
-                    [buyer, treasury, bulletLastPresale],
+                    [user, treasury, bulletLastPresale],
                     [minSaleTokenPartialAmount, -minSaleTokenPartialAmount, 0n]
                 );
             });
 
             it("Should return the right user vestings", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1148,22 +1322,22 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, minUSDTAmount);
 
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
 
                 for (let i = 0n; i < 3n; i++) {
                     const [currentAmount, currentStartTime]: Vesting =
-                        await bulletLastPresale.userVestings(buyer.address, roundId, i);
+                        await bulletLastPresale.userVestings(user.address, roundId, i);
                     expect(currentAmount).to.equal(minSaleTokenPartialAmount);
                     expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
                 }
             });
 
             it("Should return the right claimable amount if reaching the next vesting period", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1172,27 +1346,27 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, minUSDTAmount);
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, minUSDTAmount);
 
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
 
                 const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address
+                    user.address
                 );
                 expect(claimableAmount).to.equal(0n);
 
                 for (let i = 0n; i < 3n; i++) {
                     const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
-                        buyer.address,
+                        user.address,
                         roundId,
                         i
                     );
                     await time.increaseTo(currentStartTime);
 
                     const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                        buyer.address
+                        user.address
                     );
                     expect(claimableAmount).to.equal(minSaleTokenPartialAmount * (i + 1n));
                 }
@@ -1203,7 +1377,7 @@ describe("BulletLastPresale", function () {
     describe("Claim", function () {
         describe("Validations", function () {
             it("Should return the right error if having the zero claimable amount", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1212,26 +1386,26 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
 
                 const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
-                    buyer.address,
+                    user.address,
                     roundId,
                     0n
                 );
                 await time.increaseTo(currentStartTime - 2n);
 
-                const promise = bulletLastPresale.claim(buyer.address);
+                const promise = bulletLastPresale.claim(user.address);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
-                    .withArgs(buyer.address);
+                    .withArgs(user.address);
             });
 
             it("Should return the right error if claiming the same vesting period twice", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1240,30 +1414,30 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
 
                 const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
-                    buyer.address,
+                    user.address,
                     roundId,
                     0n
                 );
                 await time.increaseTo(currentStartTime);
 
-                await bulletLastPresale.claim(buyer.address);
+                await bulletLastPresale.claim(user.address);
 
-                const promise = bulletLastPresale.claim(buyer.address);
+                const promise = bulletLastPresale.claim(user.address);
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
-                    .withArgs(buyer.address);
+                    .withArgs(user.address);
             });
         });
 
         describe("Events", function () {
             it("Should emit the Claimed event", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1272,32 +1446,32 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
 
                 const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
-                    buyer.address,
+                    user.address,
                     roundId,
                     0n
                 );
                 await time.increaseTo(currentStartTime);
 
                 const claimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address
+                    user.address
                 );
 
-                const promise = bulletLastPresale.claim(buyer.address);
+                const promise = bulletLastPresale.claim(user.address);
                 await expect(promise)
                     .to.emit(bulletLastPresale, "Claimed")
-                    .withArgs(buyer.address, claimableAmount);
+                    .withArgs(user.address, claimableAmount);
             });
         });
 
         describe("Checks", function () {
             it("Should return the right claimable amount", async function () {
-                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, buyer } =
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1306,25 +1480,25 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
 
-                await usdtTokenMock.connect(buyer).approve(bulletLastPresaleAddress, maxUSDTAmount);
-                await (bulletLastPresale.connect(buyer) as BulletLastPresale).buyWithUSDT(
+                await usdtTokenMock.connect(user).approve(bulletLastPresaleAddress, maxUSDTAmount);
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
                     minSaleTokenAmount
                 );
 
                 const [_, currentStartTime]: Vesting = await bulletLastPresale.userVestings(
-                    buyer.address,
+                    user.address,
                     roundId,
                     0n
                 );
                 await time.increaseTo(currentStartTime);
 
                 const initialClaimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address
+                    user.address
                 );
-                await bulletLastPresale.claim(buyer.address);
+                await bulletLastPresale.claim(user.address);
 
                 const currentClaimableAmount: bigint = await bulletLastPresale.getClaimableAmount(
-                    buyer.address
+                    user.address
                 );
                 expect(currentClaimableAmount).not.to.equal(initialClaimableAmount);
                 expect(currentClaimableAmount).to.equal(0n);

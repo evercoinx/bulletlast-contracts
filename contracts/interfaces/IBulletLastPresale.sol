@@ -43,7 +43,7 @@ interface IBulletLastPresale {
 
     error ZeroRoundId();
 
-    error ActiveRoundNotFound();
+    error RoundNotFound();
 
     error InvalidActiveRoundId(uint256 activeRoundId);
 
@@ -51,17 +51,17 @@ interface IBulletLastPresale {
 
     error RoundAlreadyExists(uint256 roundId);
 
-    error TooLowEtherBuyAmount(uint256 amount);
+    error TooLowEtherBuyAmount(uint256 etherAmount, uint256 amount);
 
-    error TooHighEtherBuyAmount(uint256 amount);
+    error TooHighEtherBuyAmount(uint256 etherAmount, uint256 amount);
+
+    error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
     error TooLowUSDTBuyAmount(uint256 amount);
 
     error TooHighUSDTBuyAmount(uint256 amount);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
-
-    error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
     error ZeroClaimableAmount(address user);
 

@@ -27,7 +27,7 @@ contract BulletLastPresale is
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
 
     uint256 private constant _MIN_ETHER_BUY_AMOUNT = 4 * 10 ** 16;
-    uint256 private constant _MAX_ETHER_BUY_AMOUNT = 40 * 100 ** 16;
+    uint256 private constant _MAX_ETHER_BUY_AMOUNT = 40 * 10 ** 16;
     uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** 6;
     uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** 6;
     uint8 private constant _VESTING_CLIFFS = 3;
@@ -155,10 +155,10 @@ contract BulletLastPresale is
 
         uint256 etherAmount = (amount * activeRound.price * 10 ** 14) / getLatestEtherPrice();
         if (etherAmount < _MIN_ETHER_BUY_AMOUNT) {
-            revert TooLowEtherBuyAmount(etherAmount);
+            revert TooLowEtherBuyAmount(etherAmount, amount);
         }
         if (etherAmount > _MAX_ETHER_BUY_AMOUNT) {
-            revert TooHighEtherBuyAmount(etherAmount);
+            revert TooHighEtherBuyAmount(etherAmount, amount);
         }
         if (etherAmount > msg.value) {
             revert InsufficientEtherAmount(etherAmount, msg.value);
@@ -168,9 +168,9 @@ contract BulletLastPresale is
 
         _sendEther(treasury, etherAmount);
 
-        uint256 excesses = msg.value - etherAmount;
-        if (excesses > 0) {
-            _sendEther(_msgSender(), excesses);
+        uint256 excessAmount = msg.value - etherAmount;
+        if (excessAmount > 0) {
+            _sendEther(_msgSender(), excessAmount);
         }
 
         emit BoughtWithEther(_msgSender(), activeRoundId, amount, etherAmount);
@@ -193,7 +193,6 @@ contract BulletLastPresale is
         _handleUserVesting(_msgSender(), activeRound, amount);
 
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
-
         emit BoughtWithUSDT(_msgSender(), activeRoundId, amount, usdtAmount);
     }
 
@@ -219,7 +218,6 @@ contract BulletLastPresale is
         }
 
         saleToken.safeTransferFrom(treasury, user, claimableAmount);
-
         emit Claimed(user, claimableAmount);
     }
 
@@ -253,7 +251,7 @@ contract BulletLastPresale is
 
     function _handleUserVesting(address user, Round storage round, uint256 amount) private {
         uint256 vestingAmount = amount / (_VESTING_CLIFFS + 1);
-        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][activeRoundId];
+        Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][activeRoundId];
 
         for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
             uint64 cliff = uint64(i + 1) * vestingDuration;
@@ -280,10 +278,9 @@ contract BulletLastPresale is
 
     function _getActiveRound() private view returns (Round storage) {
         Round storage round = rounds[activeRoundId];
-        if (round.startTime == 0) {
-            revert ActiveRoundNotFound();
+        if (round.price == 0) {
+            revert RoundNotFound();
         }
-
         return round;
     }
 }
