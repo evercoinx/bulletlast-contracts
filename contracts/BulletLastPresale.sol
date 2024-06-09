@@ -202,13 +202,13 @@ contract BulletLastPresale is
         emit BoughtWithUSDT(_msgSender(), activeRoundId, amount, usdtAmount);
     }
 
-    function claim(address user) external nonReentrant whenNotPaused {
+    function claim() external nonReentrant whenNotPaused {
         uint256 claimableAmount = 0;
         uint256 roundIdCount = roundIds.length;
 
         for (uint256 i = 0; i < roundIdCount; i++) {
             uint256 roundId = roundIds[i];
-            Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][roundId];
+            Vesting[_VESTING_CLIFFS] storage vestings = userVestings[_msgSender()][roundId];
 
             for (uint256 j = 0; j < _VESTING_CLIFFS; j++) {
                 Vesting storage vesting = vestings[j];
@@ -220,11 +220,11 @@ contract BulletLastPresale is
         }
 
         if (claimableAmount == 0) {
-            revert ZeroClaimableAmount(user);
+            revert ZeroClaimableAmount(_msgSender());
         }
 
-        saleToken.safeTransferFrom(treasury, user, claimableAmount);
-        emit Claimed(user, claimableAmount);
+        saleToken.safeTransferFrom(treasury, _msgSender(), claimableAmount);
+        emit Claimed(_msgSender(), claimableAmount);
     }
 
     function getActiveRound() external view returns (Round memory) {

@@ -1774,7 +1774,7 @@ describe("BulletLastPresale", function () {
 
                 await bulletLastPresale.pause();
 
-                const promise = bulletLastPresale.claim(user.address);
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).claim();
                 await expect(promise).to.be.revertedWithCustomError(
                     bulletLastPresale,
                     "EnforcedPause"
@@ -1803,7 +1803,7 @@ describe("BulletLastPresale", function () {
                 );
                 await time.increaseTo(currentStartTime - 2n);
 
-                const promise = bulletLastPresale.claim(user.address);
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).claim();
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
                     .withArgs(user.address);
@@ -1831,9 +1831,9 @@ describe("BulletLastPresale", function () {
                 );
                 await time.increaseTo(currentStartTime);
 
-                await bulletLastPresale.claim(user.address);
+                await (bulletLastPresale.connect(user) as BulletLastPresale).claim();
 
-                const promise = bulletLastPresale.claim(user.address);
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).claim();
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "ZeroClaimableAmount")
                     .withArgs(user.address);
@@ -1867,7 +1867,7 @@ describe("BulletLastPresale", function () {
                     user.address
                 );
 
-                const promise = bulletLastPresale.claim(user.address);
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).claim();
                 await expect(promise)
                     .to.emit(bulletLastPresale, "Claimed")
                     .withArgs(user.address, claimableAmount);
@@ -1907,7 +1907,7 @@ describe("BulletLastPresale", function () {
                     const currentClaimableAmount: bigint =
                         await bulletLastPresale.getClaimableAmount(user.address);
 
-                    const promise = bulletLastPresale.claim(user.address);
+                    const promise = (bulletLastPresale.connect(user) as BulletLastPresale).claim();
                     await expect(promise).to.changeTokenBalances(
                         bulletLastToken,
                         [user, treasury, bulletLastPresale],
@@ -1941,7 +1941,7 @@ describe("BulletLastPresale", function () {
 
                     const initialClaimableAmount: bigint =
                         await bulletLastPresale.getClaimableAmount(user.address);
-                    await bulletLastPresale.claim(user.address);
+                    await (bulletLastPresale.connect(user) as BulletLastPresale).claim();
 
                     const currentClaimableAmount: bigint =
                         await bulletLastPresale.getClaimableAmount(user.address);

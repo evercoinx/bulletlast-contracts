@@ -85,7 +85,7 @@ interface IBulletLastPresale {
 
     function buyWithUSDT(uint256 amount) external;
 
-    function claim(address user) external;
+    function claim() external;
 
     function getActiveRound() external view returns (Round memory);
 
