@@ -21,6 +21,7 @@ describe("BulletLastPresale", function () {
     const minSaleTokenAmount = ethers.parseUnits("5000", 18); // 5,000 LEAD
     const minSaleTokenPartialAmount = minSaleTokenAmount / 4n;
     const maxSaleTokenAmount = ethers.parseUnits("50000", 18); // 50,000 LEAD
+    const allocatedSaleTokenAmount = maxSaleTokenAmount;
     const minEtherAmount = ethers.parseEther("0.04"); // 0.04 ETH
     const maxEtherAmount = ethers.parseEther("0.4"); // 0.0 ETH
     const minUSDTAmount = ethers.parseUnits("100", 6); // 100 USDT
@@ -72,6 +73,7 @@ describe("BulletLastPresale", function () {
             bulletLastPresaleAddress,
             maxSaleTokenAmount
         );
+        await bulletLastPresale.setAllocatedAmount(allocatedSaleTokenAmount);
 
         return {
             bulletLastPresale,
@@ -231,6 +233,26 @@ describe("BulletLastPresale", function () {
                     await bulletLastPresale.getRoleAdmin(roundManagerRole);
                 expect(currentAdminRole).to.equal(defaultAdminRole);
             });
+            it("Should return the right active round id", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const currentActiveRoundId: bigint = await bulletLastPresale.activeRoundId();
+                expect(currentActiveRoundId).to.equal(0n);
+            });
+
+            it("Should return the right vesting duration", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const currentVestingDuration: bigint = await bulletLastPresale.vestingDuration();
+                expect(currentVestingDuration).to.equal(vestingDuration);
+            });
+
+            it("Should return the right allocated amount", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const currentAllocatedAmount: bigint = await bulletLastPresale.allocatedAmount();
+                expect(currentAllocatedAmount).to.equal(allocatedSaleTokenAmount);
+            });
 
             it("Should return the right sale token address", async function () {
                 const { bulletLastPresale, bulletLastTokenAddress } =
@@ -261,13 +283,6 @@ describe("BulletLastPresale", function () {
 
                 const currentTreasuryAddress: string = await bulletLastPresale.treasury();
                 expect(currentTreasuryAddress).to.equal(treasury.address);
-            });
-
-            it("Should return the right vesting duration", async function () {
-                const { bulletLastPresale } = await loadFixture(deployFixture);
-
-                const currentVestingDuration: bigint = await bulletLastPresale.vestingDuration();
-                expect(currentVestingDuration).to.equal(vestingDuration);
             });
         });
     });
@@ -702,6 +717,54 @@ describe("BulletLastPresale", function () {
         });
     });
 
+    describe("Set an allocated amount", function () {
+        const newAllocatedSaleTokenAmount = allocatedSaleTokenAmount * 2n;
+
+        describe("Validations", function () {
+            it("Should revert with the right error if called by a non admin", async () => {
+                const { bulletLastPresale, executor, roundManagerRole } =
+                    await loadFixture(deployFixture);
+
+                const promise = (
+                    bulletLastPresale.connect(executor) as BulletLastPresale
+                ).setAllocatedAmount(newAllocatedSaleTokenAmount);
+                await expect(promise)
+                    .to.be.revertedWithCustomError(
+                        bulletLastPresale,
+                        "AccessControlUnauthorizedAccount"
+                    )
+                    .withArgs(executor.address, roundManagerRole);
+            });
+        });
+
+        describe("Events", function () {
+            it("Should emit the AllocatedAmountSet event", async () => {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const promise = (
+                    bulletLastPresale.connect(roundManager) as BulletLastPresale
+                ).setAllocatedAmount(newAllocatedSaleTokenAmount);
+                await expect(promise)
+                    .to.emit(bulletLastPresale, "AllocatedAmountSet")
+                    .withArgs(newAllocatedSaleTokenAmount);
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right allocated amount", async () => {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const initialAllocatedAmount: bigint = await bulletLastPresale.allocatedAmount();
+
+                await bulletLastPresale.setAllocatedAmount(newAllocatedSaleTokenAmount);
+
+                const currentAllocatedAmount = await bulletLastPresale.allocatedAmount();
+                expect(currentAllocatedAmount).not.to.equal(initialAllocatedAmount);
+                expect(currentAllocatedAmount).to.equal(newAllocatedSaleTokenAmount);
+            });
+        });
+    });
+
     describe("Create a round", function () {
         describe("Validations", function () {
             it("Should revert with the right error if called by a non admin", async function () {
@@ -1071,6 +1134,29 @@ describe("BulletLastPresale", function () {
                     .withArgs(minEtherAmount, lowEtherAmount);
             });
 
+            it("Should revert with the right error if having an insufficient allocated amount", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    maxSaleTokenAmount,
+                    { value: maxEtherAmount }
+                );
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InsufficientAllocatedAmount")
+                    .withArgs(minSaleTokenAmount, 0n);
+            });
+
             it("Should revert with the right error if unable to send Ether to the caller", async function () {
                 const { bulletLastPresale, reverter, reverterAddress } =
                     await loadFixture(deployFixture);
@@ -1156,7 +1242,7 @@ describe("BulletLastPresale", function () {
                 );
             });
 
-            it("Should return the right Ether balances if sent Ether exceeds", async function () {
+            it("Should return the right Ether balances if having exceeded Ether sent", async function () {
                 const { bulletLastPresale, user, treasury } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1175,6 +1261,29 @@ describe("BulletLastPresale", function () {
                     [user, treasury, bulletLastPresale],
                     [-minEtherAmount, minEtherAmount, 0n]
                 );
+            });
+
+            it("Should return the right allocated amount", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                for (let i = 1n; i <= 3n; i++) {
+                    await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                        minSaleTokenAmount,
+                        { value: minEtherAmount }
+                    );
+
+                    const currentAllocatedAmount: bigint =
+                        await bulletLastPresale.allocatedAmount();
+                    expect(currentAllocatedAmount).to.equal(
+                        allocatedSaleTokenAmount - minSaleTokenAmount * i
+                    );
+                }
             });
 
             it("Should return the right user vestings", async function () {

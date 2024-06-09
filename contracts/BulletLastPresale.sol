@@ -34,6 +34,7 @@ contract BulletLastPresale is
 
     uint8 public activeRoundId;
     uint64 public vestingDuration;
+    uint256 public allocatedAmount;
     IERC20 public saleToken;
     AggregatorV3Interface public etherPriceFeed;
     IERC20 public usdtToken;
@@ -113,6 +114,11 @@ contract BulletLastPresale is
 
         activeRoundId = activeRoundId_;
         emit ActiveRoundIdSet(activeRoundId_);
+    }
+
+    function setAllocatedAmount(uint256 allocatedAmount_) external onlyRole(ROUND_MANAGER_ROLE) {
+        allocatedAmount = allocatedAmount_;
+        emit AllocatedAmountSet(allocatedAmount_);
     }
 
     function createRound(
@@ -250,7 +256,12 @@ contract BulletLastPresale is
     }
 
     function _handleUserVesting(address user, Round storage round, uint256 amount) private {
-        uint256 vestingAmount = amount / (_VESTING_CLIFFS + 1);
+        if (amount > allocatedAmount) {
+            revert InsufficientAllocatedAmount(amount, allocatedAmount);
+        }
+        allocatedAmount -= amount;
+
+        uint256 vestingPartialAmount = amount / (_VESTING_CLIFFS + 1);
         Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][activeRoundId];
 
         for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
@@ -258,14 +269,14 @@ contract BulletLastPresale is
             uint64 startTime = round.startTime + cliff;
 
             if (vestings[i].startTime > 0) {
-                vestings[i].amount += vestingAmount;
+                vestings[i].amount += vestingPartialAmount;
             } else {
-                vestings[i] = Vesting({ amount: vestingAmount, startTime: startTime });
+                vestings[i] = Vesting({ amount: vestingPartialAmount, startTime: startTime });
             }
         }
 
-        uint256 unlockedAmount = amount - vestingAmount * _VESTING_CLIFFS;
-        saleToken.safeTransferFrom(treasury, user, unlockedAmount);
+        uint256 transferAmount = amount - vestingPartialAmount * _VESTING_CLIFFS;
+        saleToken.safeTransferFrom(treasury, user, transferAmount);
     }
 
     function _sendEther(address to, uint256 amount) private {

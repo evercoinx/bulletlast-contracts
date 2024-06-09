@@ -17,6 +17,8 @@ interface IBulletLastPresale {
 
     event ActiveRoundIdSet(uint256 activeRoundId);
 
+    event AllocatedAmountSet(uint256 allocatedAmount);
+
     event RoundCreated(uint8 id, uint64 startTime, uint64 endTime, uint16 price);
 
     event RoundUpdated(uint8 id, uint64 startTime, uint64 endTime, uint16 price);
@@ -62,6 +64,8 @@ interface IBulletLastPresale {
     error TooHighUSDTBuyAmount(uint256 amount);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
+
+    error InsufficientAllocatedAmount(uint256 amount, uint256 allocatedAmount);
 
     error ZeroClaimableAmount(address user);
 
