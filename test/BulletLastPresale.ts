@@ -1419,7 +1419,7 @@ describe("BulletLastPresale", function () {
                 }
             });
 
-            it("Should return the right user vestings", async function () {
+            it("Should return the right user vestings if buying once", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1437,6 +1437,32 @@ describe("BulletLastPresale", function () {
                     const [currentAmount, currentStartTime]: Vesting =
                         await bulletLastPresale.userVestings(user.address, roundId, i);
                     expect(currentAmount).to.equal(minSaleTokenPartialAmount);
+                    expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
+                }
+            });
+
+            it("Should return the right user vestings if buying twice", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
+
+                for (let i = 0n; i < vestingPeriods; i++) {
+                    const [currentAmount, currentStartTime]: Vesting =
+                        await bulletLastPresale.userVestings(user.address, roundId, i);
+                    expect(currentAmount).to.equal(minSaleTokenPartialAmount * 2n);
                     expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
                 }
             });
@@ -1686,7 +1712,7 @@ describe("BulletLastPresale", function () {
                 }
             });
 
-            it("Should return the right user vestings", async function () {
+            it("Should return the right user vestings if buying once", async function () {
                 const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
                     await loadFixture(deployFixture);
 
@@ -1706,6 +1732,35 @@ describe("BulletLastPresale", function () {
                     const [currentAmount, currentStartTime]: Vesting =
                         await bulletLastPresale.userVestings(user.address, roundId, i);
                     expect(currentAmount).to.equal(minSaleTokenPartialAmount);
+                    expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
+                }
+            });
+
+            it("Should return the right user vestings if buying twice", async function () {
+                const { bulletLastPresale, bulletLastPresaleAddress, usdtTokenMock, user } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                await usdtTokenMock
+                    .connect(user)
+                    .approve(bulletLastPresaleAddress, minUSDTAmount * 2n);
+
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+                await (bulletLastPresale.connect(user) as BulletLastPresale).buyWithUSDT(
+                    minSaleTokenAmount
+                );
+
+                for (let i = 0n; i < vestingPeriods; i++) {
+                    const [currentAmount, currentStartTime]: Vesting =
+                        await bulletLastPresale.userVestings(user.address, roundId, i);
+                    expect(currentAmount).to.equal(minSaleTokenPartialAmount * 2n);
                     expect(currentStartTime).to.equal(startTime + (i + 1n) * vestingDuration);
                 }
             });

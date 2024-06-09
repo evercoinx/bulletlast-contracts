@@ -173,7 +173,7 @@ contract BulletLastPresale is
             revert InsufficientEtherAmount(etherAmount, msg.value);
         }
 
-        _handleUserVesting(_msgSender(), activeRound, amount);
+        _handleUserVesting(_msgSender(), activeRound.startTime, amount);
 
         _sendEther(treasury, etherAmount);
 
@@ -200,7 +200,7 @@ contract BulletLastPresale is
             revert TooHighUSDTBuyAmount(usdtAmount, amount);
         }
 
-        _handleUserVesting(_msgSender(), activeRound, amount);
+        _handleUserVesting(_msgSender(), activeRound.startTime, amount);
 
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
         emit BoughtWithUSDT(_msgSender(), activeRoundId, amount, usdtAmount);
@@ -263,7 +263,7 @@ contract BulletLastPresale is
         return uint256(price) * 10 ** 10;
     }
 
-    function _handleUserVesting(address user, Round storage round, uint256 amount) private {
+    function _handleUserVesting(address user, uint64 startTime, uint256 amount) private {
         if (amount > allocatedAmount) {
             revert InsufficientAllocatedAmount(amount, allocatedAmount);
         }
@@ -275,12 +275,12 @@ contract BulletLastPresale is
 
         for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
             uint64 cliff = uint64(i + 1) * vestingDuration;
-            uint64 startTime = round.startTime + cliff;
+            uint64 vestingStartTime = startTime + cliff;
 
             if (vestings[i].startTime > 0) {
                 vestings[i].amount += vestingPartialAmount;
             } else {
-                vestings[i] = Vesting({ amount: vestingPartialAmount, startTime: startTime });
+                vestings[i] = Vesting({ amount: vestingPartialAmount, startTime: vestingStartTime });
             }
         }
 
