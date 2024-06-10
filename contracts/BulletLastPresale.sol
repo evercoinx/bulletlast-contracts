@@ -27,8 +27,8 @@ contract BulletLastPresale is
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
 
     // slither-disable-next-line similar-names
-    uint256 private constant _MIN_ETHER_BUY_AMOUNT = 4 * 10 ** 16;
-    uint256 private constant _MAX_ETHER_BUY_AMOUNT = 40 * 10 ** 16;
+    uint256 private constant _MIN_ETHER_BUY_AMOUNT = 3 * 10 ** 16;
+    uint256 private constant _MAX_ETHER_BUY_AMOUNT = 30 * 10 ** 16;
     uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** 6;
     uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** 6;
     uint8 private constant _VESTING_CLIFFS = 3;

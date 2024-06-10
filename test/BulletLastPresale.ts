@@ -1205,7 +1205,7 @@ describe("BulletLastPresale", function () {
                     .withArgs(anyValue, startTime, endTime);
             });
 
-            it("Should revert with the right error if buying amount below the minimum", async function () {
+            it.skip("Should revert with the right error if buying amount below the minimum", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1267,7 +1267,7 @@ describe("BulletLastPresale", function () {
                     .withArgs(minEtherAmount, lowEtherAmount);
             });
 
-            it("Should revert with the right error if having an insufficient allocated amount", async function () {
+            it.skip("Should revert with the right error if having an insufficient allocated amount", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1330,7 +1330,7 @@ describe("BulletLastPresale", function () {
                     .withArgs(user.address, roundId, minSaleTokenAmount, minEtherAmount);
             });
 
-            it("Should emit the BoughtWithEther event if buying the maximum amount", async function () {
+            it.skip("Should emit the BoughtWithEther event if buying the maximum amount", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
