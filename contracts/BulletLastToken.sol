@@ -5,11 +5,11 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract BulletLastToken is ERC20, Ownable {
-    address private constant wallet1 = 0x3951B3a254A4285683aBc08E63B2e632A4aa3752;
+    address private constant wallet1 = 0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7;
 
-    address private constant wallet2 = 0xBAb234Fc133a3f09f42318901D28eb683B6A5A2c;
+    address private constant wallet2 = 0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7;
 
-    address private constant wallet3 = 0x4C4922efF81AE8A1C8270EEA008cdC9095e9276a;
+    address private constant wallet3 = 0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7;
 
     uint256 private constant _initialSupply = 1_000_000_000 * 10 ** 18;
 

@@ -52,9 +52,17 @@ ETHEREUM_BULLET_LAST_PRESALE_VESTING_DURATION := 2592000
 
 all: hardhat
 
-hardhat: deploy-bulletlastpresale-hardhat
+hardhat: deploy-bulletlasttoken-hardhat deploy-bulletlastpresale-hardhat
 
-localhost: deploy-bulletlastpresale-localhost
+localhost: deploy-bulletlasttoken-localhost deploy-bulletlastpresale-localhost
+
+# Deploy the BulletLastPresale contract
+deploy-bulletlasttoken-hardhat:
+	$(BIN_HARDHAT) deploy:bullet-last-token --network $(NETWORK_HARDHAT)
+deploy-bulletlasttoken-localhost:
+	$(BIN_HARDHAT) deploy:bullet-last-token --network $(NETWORK_LOCALHOST)
+deploy-bulletlasttoken-sepolia:
+	$(BIN_HARDHAT) deploy:bullet-last-token --network $(NETWORK_SEPOLIA)
 
 # Deploy the BulletLastPresale contract
 deploy-bulletlastpresale-hardhat:

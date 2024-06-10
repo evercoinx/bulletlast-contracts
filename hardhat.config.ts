@@ -5,6 +5,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@nomiclabs/hardhat-solhint";
 import "@openzeppelin/hardhat-upgrades";
 import "hardhat-contract-sizer";
+import "./tasks/deploy-bullet-last-token";
 import "./tasks/deploy-bullet-last-presale";
 import "./tasks/upgrade-contract";
 import "./tasks/verify-contract";
