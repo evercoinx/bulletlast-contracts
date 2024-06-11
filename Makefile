@@ -78,6 +78,16 @@ deploy-bulletlastpresale-sepolia:
 deploy-bulletlastpresale-ethereum:
 	$(BIN_HARDHAT) deploy:bullet-last-presale --network $(NETWORK_ETHEREUM) --sale-token $(ETHEREUM_BULLET_LAST_TOKEN) --ether-price-feed $(ETHEREUM_ETHER_PRICE_FEED) --usdt-token $(ETHEREUM_USDT_TOKEN) --treasury $(ETHEREUM_TREASURY) --vesting-duration $(ETHEREUM_BULLET_LAST_PRESALE_VESTING_DURATION)
 
+# Verify the BulletLastToken contract
+verifycontract-bulletlasttoken-sepolia:
+	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_BULLET_LAST_TOKEN)
+
+# Verify the BulletLastPresale contract
+verifycontract-bulletlastpresale-sepolia:
+	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_BULLET_LAST_PRESALE)
+verifycontract-bulletlastpresale-ethereum:
+	$(BIN_HARDHAT) verify-contract --network $(NETWORK_ETHEREUM) --contract $(ETHEREUM_BULLET_LAST_PRESALE)
+
 # Initialize the BulletLastPresale contract
 initialize-bulletlastpresale-localhost:
 	$(BIN_HARDHAT) initialize:bullet-last-presale --network $(NETWORK_LOCALHOST) --bullet-last-presale $(LOCALHOST_BULLET_LAST_PRESALE) --bullet-last-token $(LOCALHOST_BULLET_LAST_TOKEN) --treasury $(LOCALHOST_TREASURY) --start-time $(SEPOLIA_BULLET_LAST_PRESALE_START_TIME) --round-duration $(SEPOLIA_BULLET_LAST_PRESALE_ROUND_DURATION)
