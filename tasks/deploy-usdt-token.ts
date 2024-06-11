@@ -16,7 +16,7 @@ task("deploy:usdt-token")
         const deployer = await getSigner(ethers, network.provider, network.config.from);
         const USDTToken = await ethers.getContractFactory("USDTToken", deployer);
 
-        const usdtToken = await USDTToken.deploy(deployer.address);
+        const usdtToken = await USDTToken.deploy(1_000_000n * 10n ** 6n);
         await usdtToken.waitForDeployment();
 
         const usdtTokenAddress = await usdtToken.getAddress();
