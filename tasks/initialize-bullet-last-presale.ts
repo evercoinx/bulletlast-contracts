@@ -47,9 +47,15 @@ task("initialize:bullet-last-presale")
             if (!ethers.isAddress(treasuryAddress)) {
                 throw new Error("Invalid treasury address");
             }
-            if (startTime < Date.now() / 1000) {
+
+            const now = Math.floor(Date.now() / 1000);
+            if (startTime === 0) {
+                startTime = now + 60;
+            }
+            if (startTime < now) {
                 throw new Error("Start time in past");
             }
+
             if (roundDuration === 0) {
                 throw new Error("Zero round duration");
             }
