@@ -7,6 +7,7 @@ import "@openzeppelin/hardhat-upgrades";
 import "hardhat-contract-sizer";
 import "./tasks/deploy-bullet-last-token";
 import "./tasks/deploy-bullet-last-presale";
+import "./tasks/initialize-bullet-last-presale";
 import "./tasks/upgrade-contract";
 import "./tasks/verify-contract";
 import { extractEnvironmentVariables } from "./utils/environment";
