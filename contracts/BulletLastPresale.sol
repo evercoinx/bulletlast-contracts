@@ -234,6 +234,10 @@ contract BulletLastPresale is
         return _getActiveRound();
     }
 
+    function getRoundIdCount() external view returns (uint256) {
+        return roundIds.length;
+    }
+
     function getClaimableAmount(address user) external view returns (uint256) {
         uint256 claimableAmount = 0;
         uint256 roundIdCount = roundIds.length;

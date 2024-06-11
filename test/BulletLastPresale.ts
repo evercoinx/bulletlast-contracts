@@ -286,6 +286,13 @@ describe("BulletLastPresale", function () {
                 const currentTreasuryAddress: string = await bulletLastPresale.treasury();
                 expect(currentTreasuryAddress).to.equal(treasury.address);
             });
+
+            it("Should return the right round id count", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const currentRoundIdCount: bigint = await bulletLastPresale.getRoundIdCount();
+                expect(currentRoundIdCount).to.equal(0n);
+            });
         });
     });
 
@@ -1129,6 +1136,22 @@ describe("BulletLastPresale", function () {
 
                 const currentRoundId: bigint = await bulletLastPresale.roundIds(0n);
                 expect(currentRoundId).to.equal(roundId);
+            });
+
+            it("Should return the right round id count", async function () {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                for (let i = 1; i <= 3; i++) {
+                    await (
+                        bulletLastPresale.connect(roundManager) as BulletLastPresale
+                    ).createRound(i, startTime, endTime, roundPrice);
+
+                    const currentRoundIdCount: bigint = await bulletLastPresale.getRoundIdCount();
+                    expect(currentRoundIdCount).to.equal(i);
+                }
             });
         });
     });

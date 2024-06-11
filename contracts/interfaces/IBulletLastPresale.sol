@@ -89,6 +89,8 @@ interface IBulletLastPresale {
 
     function getActiveRound() external view returns (Round memory);
 
+    function getRoundIdCount() external view returns (uint256);
+
     function getClaimableAmount(address user) external view returns (uint256);
 
     function getLatestEtherPrice() external view returns (uint256);
