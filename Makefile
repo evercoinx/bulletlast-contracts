@@ -29,7 +29,7 @@ LOCALHOST_TREASURY := 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 
 # Sepolia testnet contract addresses
 SEPOLIA_BULLET_LAST_PRESALE := 
-SEPOLIA_BULLET_LAST_TOKEN :=
+SEPOLIA_BULLET_LAST_TOKEN := 0x04D66AD32542453fF82C1476b0c5A922aB7C9bcF
 SEPOLIA_ETHER_PRICE_FEED :=
 SEPOLIA_USDT_TOKEN :=
 SEPOLIA_TREASURY :=
@@ -68,6 +68,14 @@ deploy-bulletlasttoken-localhost:
 deploy-bulletlasttoken-sepolia:
 	$(BIN_HARDHAT) deploy:bullet-last-token --network $(NETWORK_SEPOLIA)
 
+# Deploy the USDTToken contract
+deploy-usdttoken-hardhat:
+	$(BIN_HARDHAT) deploy:usdt-token --network $(NETWORK_HARDHAT)
+deploy-usdttoken-localhost:
+	$(BIN_HARDHAT) deploy:usdt-token --network $(NETWORK_LOCALHOST)
+deploy-usdttoken-sepolia:
+	$(BIN_HARDHAT) deploy:usdt-token --network $(NETWORK_SEPOLIA)
+
 # Deploy the BulletLastPresale contract
 deploy-bulletlastpresale-hardhat:
 	$(BIN_HARDHAT) deploy:bullet-last-presale --network $(NETWORK_HARDHAT) --sale-token $(HARDHAT_BULLET_LAST_TOKEN) --ether-price-feed $(HARDHAT_ETHER_PRICE_FEED) --usdt-token $(HARDHAT_USDT_TOKEN) --treasury $(HARDHAT_TREASURY) --vesting-duration $(SEPOLIA_BULLET_LAST_PRESALE_VESTING_DURATION)
@@ -81,6 +89,10 @@ deploy-bulletlastpresale-ethereum:
 # Verify the BulletLastToken contract
 verifycontract-bulletlasttoken-sepolia:
 	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_BULLET_LAST_TOKEN)
+
+# Verify the USDT contract
+verifycontract-usdttoken-sepolia:
+	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_USDT_TOKEN)
 
 # Verify the BulletLastPresale contract
 verifycontract-bulletlastpresale-sepolia:
