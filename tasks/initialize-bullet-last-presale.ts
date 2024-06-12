@@ -1,6 +1,6 @@
 import { task, types } from "hardhat/config";
 import { getSigner } from "../utils/account";
-import { Network, isLocalNetwork } from "../utils/network";
+import { Network, isMainNetwork } from "../utils/network";
 
 interface TaskParams {
     bulletLastPresale: string;
@@ -75,8 +75,8 @@ task("initialize:bullet-last-presale")
                 deployer
             );
 
-            if (isLocalNetwork(networkName)) {
-                const approvedAmount = ethers.parseUnits("1000000", 18);
+            if (!isMainNetwork(networkName)) {
+                const approvedAmount = ethers.parseUnits("500000000", 18);
                 await bulletLastToken.approve(bulletLastPresaleAddress, approvedAmount);
             }
 
