@@ -106,13 +106,25 @@ contract BulletLastPresale is
         emit TreasurySet(treasury_);
     }
 
+    function checkToSetActiveRoundId() external onlyRole(ROUND_MANAGER_ROLE) {
+        uint256 roundCount = roundIds.length;
+        for (uint256 i = 0; i < roundCount; i++) {
+            uint8 roundId = roundIds[i];
+            Round storage round = rounds[roundId];
+
+            if (block.timestamp >= round.startTime && block.timestamp <= round.endTime) {
+                _setActiveRoundId(roundId);
+                return;
+            }
+        }
+    }
+
     function setActiveRoundId(uint8 activeRoundId_) external onlyRole(ROUND_MANAGER_ROLE) {
         if (activeRoundId_ == 0 || activeRoundId_ == activeRoundId) {
             revert InvalidActiveRoundId(activeRoundId_);
         }
 
-        activeRoundId = activeRoundId_;
-        emit ActiveRoundIdSet(activeRoundId_);
+        _setActiveRoundId(activeRoundId_);
     }
 
     function setAllocatedAmount(uint256 allocatedAmount_) external onlyRole(ROUND_MANAGER_ROLE) {
@@ -262,6 +274,11 @@ contract BulletLastPresale is
         // slither-disable-next-line unused-return
         (, int256 price, , , ) = etherPriceFeed.latestRoundData();
         return uint256(price) * 10 ** 10;
+    }
+
+    function _setActiveRoundId(uint8 roundId) private {
+        activeRoundId = roundId;
+        emit ActiveRoundIdSet(roundId);
     }
 
     function _handleUserVesting(address user, uint64 startTime, uint256 amount) private {

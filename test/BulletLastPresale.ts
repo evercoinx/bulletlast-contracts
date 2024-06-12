@@ -719,6 +719,82 @@ describe("BulletLastPresale", function () {
         });
     });
 
+    describe("Check to set the active round id", function () {
+        describe("Validations", function () {
+            it("Should revert with the right error if called by a non admin", async () => {
+                const { bulletLastPresale, executor, roundManagerRole } =
+                    await loadFixture(deployFixture);
+
+                const promise = (
+                    bulletLastPresale.connect(executor) as BulletLastPresale
+                ).checkToSetActiveRoundId();
+                await expect(promise)
+                    .to.be.revertedWithCustomError(
+                        bulletLastPresale,
+                        "AccessControlUnauthorizedAccount"
+                    )
+                    .withArgs(executor.address, roundManagerRole);
+            });
+        });
+
+        describe("Events", function () {
+            it("Should emit the ActiveRoundIdSet event", async () => {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                let startTime = BigInt(await time.latest()) + 4n;
+                let price = 200;
+
+                for (let i = 1; i <= 3; i++) {
+                    const endTime = startTime + roundDuration;
+                    await bulletLastPresale.createRound(i, startTime, endTime, price);
+
+                    startTime = endTime + 1n;
+                    price += 10;
+                }
+
+                for (let i = 1; i <= 3; i++) {
+                    const [currentStartTime]: Round = await bulletLastPresale.rounds(i);
+                    await time.increaseTo(currentStartTime);
+
+                    const promise = (
+                        bulletLastPresale.connect(roundManager) as BulletLastPresale
+                    ).checkToSetActiveRoundId();
+                    await expect(promise)
+                        .to.emit(bulletLastPresale, "ActiveRoundIdSet")
+                        .withArgs(i);
+                }
+            });
+        });
+
+        describe("Checks", function () {
+            it("Should return the right active round id", async () => {
+                const { bulletLastPresale, roundManager } = await loadFixture(deployFixture);
+
+                let startTime = BigInt(await time.latest()) + 4n;
+                let price = 200;
+
+                for (let i = 1; i <= 3; i++) {
+                    const endTime = startTime + roundDuration;
+                    await bulletLastPresale.createRound(i, startTime, endTime, price);
+
+                    startTime = endTime + 1n;
+                    price += 10;
+                }
+
+                for (let i = 1; i <= 3; i++) {
+                    const [currentStartTime]: Round = await bulletLastPresale.rounds(i);
+                    await time.increaseTo(currentStartTime);
+
+                    await (
+                        bulletLastPresale.connect(roundManager) as BulletLastPresale
+                    ).checkToSetActiveRoundId();
+                    const currentActiveRoundId: bigint = await bulletLastPresale.activeRoundId();
+                    expect(currentActiveRoundId).to.equal(i);
+                }
+            });
+        });
+    });
+
     describe("Set an allocated amount", function () {
         const newAllocatedSaleTokenAmount = allocatedSaleTokenAmount * 2n;
 
