@@ -1,6 +1,6 @@
 import { task, types } from "hardhat/config";
 import { getSigner } from "../utils/account";
-import { Network, isMainNetwork } from "../utils/network";
+import { Network, isLocalNetwork } from "../utils/network";
 
 interface TaskParams {
     bulletLastPresale: string;
@@ -75,11 +75,11 @@ task("initialize:bullet-last-presale")
                 deployer
             );
 
-            if (!isMainNetwork(networkName)) {
+            if (isLocalNetwork(networkName)) {
                 const approvedAmount = ethers.parseUnits("1000000", 18);
                 await bulletLastToken.approve(bulletLastPresaleAddress, approvedAmount);
-                console.log(`${ethers.formatUnits(approvedAmount, 18)} LEAD approved`);
             }
+
             const allocatedAmount: bigint = await bulletLastToken.allowance(
                 treasuryAddress,
                 bulletLastPresaleAddress
@@ -92,7 +92,7 @@ task("initialize:bullet-last-presale")
             console.log(`Allocated amount set to ${ethers.formatUnits(allocatedAmount, 18)}`);
 
             let price = 200;
-            for (let i = 1; i <= 15; i++) {
+            for (let i = 1; i <= 11; i++) {
                 const endTime = startTime + roundDuration;
                 await bulletLastPresale.createRound(i, startTime, endTime, price);
                 console.log(
