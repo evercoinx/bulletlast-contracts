@@ -8,6 +8,7 @@ interface TaskParams {
     treasury: string;
     startTime: number;
     roundDuration: number;
+    roundManager: string;
 }
 
 task("initialize:bullet-last-presale")
@@ -27,6 +28,7 @@ task("initialize:bullet-last-presale")
     .addParam<string>("treasury", "Treasury address", undefined, types.string)
     .addParam<number>("startTime", "Presale initial start time", undefined, types.int)
     .addParam<number>("roundDuration", "Round duration (in seconds)", undefined, types.int)
+    .addParam<string>("roundManager", "Round manager address", undefined, types.string)
     .setAction(
         async (
             {
@@ -35,6 +37,7 @@ task("initialize:bullet-last-presale")
                 treasury: treasuryAddress,
                 startTime,
                 roundDuration,
+                roundManager: roundManagerAddress,
             }: TaskParams,
             { ethers, network }
         ) => {
@@ -46,6 +49,9 @@ task("initialize:bullet-last-presale")
             }
             if (!ethers.isAddress(treasuryAddress)) {
                 throw new Error("Invalid treasury address");
+            }
+            if (!ethers.isAddress(roundManagerAddress)) {
+                throw new Error("Invalid round manager address");
             }
 
             const now = Math.floor(Date.now() / 1000);
@@ -90,6 +96,10 @@ task("initialize:bullet-last-presale")
 
             await bulletLastPresale.setAllocatedAmount(allocatedAmount);
             console.log(`Allocated amount set to ${ethers.formatUnits(allocatedAmount, 18)}`);
+
+            const roundMangerRole = await bulletLastPresale.ROUND_MANAGER_ROLE();
+            await bulletLastPresale.grantRole(roundMangerRole, roundManagerAddress);
+            console.log(`Round manager role set for ${roundManagerAddress}`);
 
             let price = 200;
             for (let i = 1; i <= 11; i++) {
