@@ -112,6 +112,7 @@ contract BulletLastPresale is
             uint8 roundId = roundIds[i];
             Round storage round = rounds[roundId];
 
+            // slither-disable-next-line timestamp
             if (block.timestamp >= round.startTime && block.timestamp <= round.endTime) {
                 _setActiveRoundId(roundId);
                 return;
@@ -276,6 +277,7 @@ contract BulletLastPresale is
         return uint256(price) * 10 ** 10;
     }
 
+    // slither-disable-next-line costly-loop
     function _setActiveRoundId(uint8 roundId) private {
         activeRoundId = roundId;
         emit ActiveRoundIdSet(roundId);
