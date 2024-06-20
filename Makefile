@@ -14,25 +14,25 @@ NETWORK_SEPOLIA := sepolia
 NETWORK_ETHEREUM := ethereum
 
 # Hardhat contract addresses
-HARDHAT_BULLET_LAST_PRESALE := 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
 HARDHAT_BULLET_LAST_TOKEN := 0x5FbDB2315678afecb367f032d93F642f64180aa3
+HARDHAT_BULLET_LAST_PRESALE := 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
 HARDHAT_ETHER_PRICE_FEED := 0x5FbDB2315678afecb367f032d93F642f64180aa3
-HARDHAT_USDT_TOKEN := 0x5FbDB2315678afecb367f032d93F642f64180aa3
 HARDHAT_TREASURY := 0x5FbDB2315678afecb367f032d93F642f64180aa3
+HARDHAT_USDT_TOKEN := 0x5FbDB2315678afecb367f032d93F642f64180aa3
 
 # Localhost contract addresses
 LOCALHOST_BULLET_LAST_PRESALE := 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
 LOCALHOST_BULLET_LAST_TOKEN := 0x5FbDB2315678afecb367f032d93F642f64180aa3
 LOCALHOST_ETHER_PRICE_FEED := 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-LOCALHOST_USDT_TOKEN := 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
 LOCALHOST_TREASURY := 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+LOCALHOST_USDT_TOKEN := 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
 
 # Sepolia testnet contract addresses
 SEPOLIA_BULLET_LAST_PRESALE := 0x998E69C9f276A49905f081C7cDCBa448C7d16523
-SEPOLIA_BULLET_LAST_TOKEN := 0x04D66AD32542453fF82C1476b0c5A922aB7C9bcF
+SEPOLIA_BULLET_LAST_TOKEN := 0x1B3d396Cb40595d61b38B9aDCDf09D5503894c8f
 SEPOLIA_ETHER_PRICE_FEED := 0x694AA1769357215DE4FAC081bf1f309aDC325306
-SEPOLIA_USDT_TOKEN := 0x6b28Cd1378E694AE299940F6B011aD40ce925A8A
 SEPOLIA_TREASURY := 0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7
+SEPOLIA_USDT_TOKEN := 0x43c8faF02c9316a2960eA4E8B28e63a2b7432029
 
 # Ethereum mainnet contract addresses
 ETHEREUM_BULLET_LAST_PRESALE := 
@@ -45,18 +45,18 @@ ETHEREUM_TREASURY :=
 CONTRACT_PATH_BULLET_LAST_PRESALE := contracts/BulletLastPresale.sol
 
 # Contract data
-SEPOLIA_BULLET_LAST_PRESALE_VESTING_DURATION := 21600
+SEPOLIA_BULLET_LAST_PRESALE_VESTING_DURATION := 2592000
 ETHEREUM_BULLET_LAST_PRESALE_VESTING_DURATION := 2592000
 SEPOLIA_BULLET_LAST_PRESALE_START_TIME := 0
 ETHEREUM_BULLET_LAST_PRESALE_START_TIME := 0
-SEPOLIA_BULLET_LAST_PRESALE_ROUND_DURATION := 21600
+SEPOLIA_BULLET_LAST_PRESALE_ROUND_DURATION := 259200
 ETHEREUM_BULLET_LAST_PRESALE_ROUND_DURATION := 259200
 
 all: hardhat
 
-hardhat: deploy-bulletlasttoken-hardhat deploy-bulletlastpresale-hardhat
+hardhat: deploy-bulletlasttokenmock-hardhat deploy-usdttokenmock-hardhat deploy-bulletlastpresale-hardhat
 
-localhost: deploy-bulletlasttoken-localhost deploy-bulletlastpresale-localhost initialize-bulletlastpresale-localhost
+localhost: deploy-bulletlasttokenmock-localhost deploy-usdttokenmock-localhost deploy-bulletlastpresale-localhost initialize-bulletlastpresale-localhost
 
 # Deploy the BulletLastToken contract
 deploy-bulletlasttokenmock-hardhat:
@@ -85,12 +85,12 @@ deploy-bulletlastpresale-ethereum:
 	$(BIN_HARDHAT) deploy:bullet-last-presale --network $(NETWORK_ETHEREUM) --sale-token $(ETHEREUM_BULLET_LAST_TOKEN) --ether-price-feed $(ETHEREUM_ETHER_PRICE_FEED) --usdt-token $(ETHEREUM_USDT_TOKEN) --treasury $(ETHEREUM_TREASURY) --vesting-duration $(ETHEREUM_BULLET_LAST_PRESALE_VESTING_DURATION)
 
 # Verify the BulletLastToken contract
-verifycontract-bulletlasttoken-sepolia:
-	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_BULLET_LAST_TOKEN) $(SEPOLIA_TREASURY)
+verifycontract-bulletlasttokenmock-sepolia:
+	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_BULLET_LAST_TOKEN) "$(SEPOLIA_TREASURY)"
 
 # Verify the USDT contract
-verifycontract-usdttoken-sepolia:
-	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_USDT_TOKEN) 1000000000000
+verifycontract-usdttokenmock-sepolia:
+	$(BIN_HARDHAT) verify-contract --network $(NETWORK_SEPOLIA) --contract $(SEPOLIA_USDT_TOKEN) "1000000000000000"
 
 # Verify the BulletLastPresale contract
 verifycontract-bulletlastpresale-sepolia:
