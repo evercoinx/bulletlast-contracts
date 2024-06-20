@@ -59,20 +59,20 @@ hardhat: deploy-bulletlasttoken-hardhat deploy-bulletlastpresale-hardhat
 localhost: deploy-bulletlasttoken-localhost deploy-bulletlastpresale-localhost initialize-bulletlastpresale-localhost
 
 # Deploy the BulletLastToken contract
-deploy-bulletlasttoken-hardhat:
-	$(BIN_HARDHAT) deploy:bullet-last-token --network $(NETWORK_HARDHAT)
-deploy-bulletlasttoken-localhost:
-	$(BIN_HARDHAT) deploy:bullet-last-token --network $(NETWORK_LOCALHOST)
-deploy-bulletlasttoken-sepolia:
-	$(BIN_HARDHAT) deploy:bullet-last-token --network $(NETWORK_SEPOLIA)
+deploy-bulletlasttokenmock-hardhat:
+	$(BIN_HARDHAT) deploy:bullet-last-token-mock --network $(NETWORK_HARDHAT)
+deploy-bulletlasttokenmock-localhost:
+	$(BIN_HARDHAT) deploy:bullet-last-token-mock --network $(NETWORK_LOCALHOST)
+deploy-bulletlasttokenmock-sepolia:
+	$(BIN_HARDHAT) deploy:bullet-last-token-mock --network $(NETWORK_SEPOLIA)
 
 # Deploy the USDTToken contract
-deploy-usdttoken-hardhat:
-	$(BIN_HARDHAT) deploy:usdt-token --network $(NETWORK_HARDHAT)
-deploy-usdttoken-localhost:
-	$(BIN_HARDHAT) deploy:usdt-token --network $(NETWORK_LOCALHOST)
-deploy-usdttoken-sepolia:
-	$(BIN_HARDHAT) deploy:usdt-token --network $(NETWORK_SEPOLIA)
+deploy-usdttokenmock-hardhat:
+	$(BIN_HARDHAT) deploy:usdt-token-mock --network $(NETWORK_HARDHAT)
+deploy-usdttokenmock-localhost:
+	$(BIN_HARDHAT) deploy:usdt-token-mock --network $(NETWORK_LOCALHOST)
+deploy-usdttokenmock-sepolia:
+	$(BIN_HARDHAT) deploy:usdt-token-mock --network $(NETWORK_SEPOLIA)
 
 # Deploy the BulletLastPresale contract
 deploy-bulletlastpresale-hardhat:

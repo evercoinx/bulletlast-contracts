@@ -5,9 +5,9 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@nomiclabs/hardhat-solhint";
 import "@openzeppelin/hardhat-upgrades";
 import "hardhat-contract-sizer";
-import "./tasks/deploy-bullet-last-token";
+import "./tasks/deploy-bullet-last-token-mock";
 import "./tasks/deploy-bullet-last-presale";
-import "./tasks/deploy-usdt-token";
+import "./tasks/deploy-usdt-token-mock";
 import "./tasks/initialize-bullet-last-presale";
 import "./tasks/upgrade-contract";
 import "./tasks/verify-contract";
@@ -121,7 +121,7 @@ const config: HardhatUserConfig = {
         runOnCompile: false,
         disambiguatePaths: false,
         strict: true,
-        only: ["BulletLast", "BulletLastPresale"],
+        only: ["BulletLastPresale"],
         except: ["@chainlink/", "@openzeppelin/", "interfaces/", "libraries/", "mocks/"],
     },
 };

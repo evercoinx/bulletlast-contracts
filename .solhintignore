@@ -1,9 +1,9 @@
 .openzeppelin
 artifacts/
 cache/
-contracts/BulletLastToken.sol
 coverage/
 crytic-corpus/
 crytic-export/
+mocks/
 node_modules/
 typechain-types/

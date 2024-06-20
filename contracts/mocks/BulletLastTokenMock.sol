@@ -4,7 +4,7 @@ pragma solidity 0.8.22;
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract BulletLastToken is ERC20, Ownable {
+contract BulletLastTokenMock is ERC20, Ownable {
     address private constant wallet1 = 0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7;
 
     address private constant wallet2 = 0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7;
