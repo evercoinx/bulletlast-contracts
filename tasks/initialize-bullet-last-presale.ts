@@ -76,14 +76,19 @@ task("initialize:bullet-last-presale")
                 deployer
             );
             const bulletLastToken = await ethers.getContractAt(
-                "BulletLastToken",
+                "BulletLastTokenMock",
                 bulletLastTokenAddress,
                 deployer
             );
 
             if (!isMainNetwork(networkName)) {
                 const approvedAmount = ethers.parseUnits("500000000", 18);
-                await bulletLastToken.approve(bulletLastPresaleAddress, approvedAmount);
+
+                const tx = await bulletLastToken.approve(bulletLastPresaleAddress, approvedAmount);
+                await tx.wait(1);
+                console.log(
+                    `Approved amount set to ${ethers.formatUnits(approvedAmount, 18)} for ${bulletLastPresaleAddress}. Tx: ${tx.hash}`
+                );
             }
 
             const allocatedAmount: bigint = await bulletLastToken.allowance(
@@ -94,8 +99,11 @@ task("initialize:bullet-last-presale")
                 throw new Error("Zero sale token allocated amount");
             }
 
-            await bulletLastPresale.setAllocatedAmount(allocatedAmount);
-            console.log(`Allocated amount set to ${ethers.formatUnits(allocatedAmount, 18)}`);
+            const tx = await bulletLastPresale.setAllocatedAmount(allocatedAmount);
+            await tx.wait(1);
+            console.log(
+                `Allocated amount set to ${ethers.formatUnits(allocatedAmount, 18)}. Tx: ${tx.hash}`
+            );
 
             const roundMangerRole = await bulletLastPresale.ROUND_MANAGER_ROLE();
             await bulletLastPresale.grantRole(roundMangerRole, roundManagerAddress);
@@ -104,9 +112,10 @@ task("initialize:bullet-last-presale")
             let price = 200;
             for (let i = 1; i <= 11; i++) {
                 const endTime = startTime + roundDuration;
-                await bulletLastPresale.createRound(i, startTime, endTime, price);
+                const tx = await bulletLastPresale.createRound(i, startTime, endTime, price);
+                await tx.wait(1);
                 console.log(
-                    `Round ${i} created: ${new Date(startTime * 1000).toUTCString()} - ${new Date(endTime * 1000).toUTCString()} at $${price / 10_000}`
+                    `Round ${i} created: ${new Date(startTime * 1000).toUTCString()} - ${new Date(endTime * 1000).toUTCString()} at $${price / 10_000}. Tx: ${tx.hash}`
                 );
 
                 startTime = endTime + 1;
