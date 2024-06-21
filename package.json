@@ -13,8 +13,8 @@
         "cover": "rm -rf coverage* && hardhat coverage",
         "gas": "REPORT_GAS=1 hardhat test --typecheck --bail",
         "size": "hardhat size-contracts",
-        "slither": "slither .",
-        "slither:ci": "slither . --skip-clean --ignore-compile",
+        "analyze": "slitherin . --slither",
+        "analyze:ci": "slitherin --slither . --skip-clean --ignore-compile",
         "clean": "hardhat clean && rm -rf coverage/* cache/* crytic-{corpus,export}/* mochaOutput.json testMatrix.json",
         "node": "hardhat node",
         "console": "hardhat console --network localhost"
@@ -29,8 +29,8 @@
         "Serge Grigorenko <serge.grigorenko@gmail.com>"
     ],
     "engines": {
-        "node": "^20.7.0",
-        "npm": ">=10.1.0"
+        "node": "^20.9.0",
+        "npm": ">=10.2.0"
     },
     "dependencies": {
         "@chainlink/contracts": "^1.1.1",
