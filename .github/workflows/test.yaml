@@ -23,16 +23,19 @@ jobs:
           cache: npm
 
       - name: Setup python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          check-latest: true
           cache: pip
 
       - name: Install node dependencies
         run: npm ci
 
       - name: Install python dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -U setuptools
+          pip install -r requirements.txt
 
       - name: Configure solidity compiler
         run: |
@@ -54,7 +57,7 @@ jobs:
       - name: Analyze contracts with static analyzer
         run: npm run analyze:ci
 
-      - name: Run tests
+      - name: Run unit tests
         run: npm run test:ci
 
       - name: Deploy contracts into hardhat network
