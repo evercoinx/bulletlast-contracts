@@ -20,9 +20,9 @@
 
 #### BulletLastPresale Contract
 
--   Proxy address: [0xB9cF6852E4Cc82003D9B6828aff69FeD439F12DB](https://sepolia.etherscan.io/address/0xB9cF6852E4Cc82003D9B6828aff69FeD439F12DB)
--   Implementation address: [0x9BB2AbD472FCfb2BDb871270Ad66CC2bcA35fd6A](https://sepolia.etherscan.io/address/0x9BB2AbD472FCfb2BDb871270Ad66CC2bcA35fd6A)
--   Admin address: [0x77300E2C44255843835a1fc7Cc4656231b72172b](https://sepolia.etherscan.io/address/0x77300E2C44255843835a1fc7Cc4656231b72172b)
+-   Proxy address: [0x77BE845c4C11C6DC4705E501309d3AFd2F9cAE7f](https://sepolia.etherscan.io/address/0x77BE845c4C11C6DC4705E501309d3AFd2F9cAE7f)
+-   Implementation address: [0x970F9D0Ee38625949541A9493E0fa20f12989Ef0](https://sepolia.etherscan.io/address/0x970F9D0Ee38625949541A9493E0fa20f12989Ef0)
+-   Admin address: [0x9E4bE26b3563F5aDD8D0b706CDd4De6df0681eB5](https://sepolia.etherscan.io/address/0x9E4bE26b3563F5aDD8D0b706CDd4De6df0681eB5)
 -   Deployer address: [0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7](https://sepolia.etherscan.io/address/0x58Dd2a0F95E346b9b891E0ad23E55B892EE803d7)
 
 #### BulletLastToken Contract
