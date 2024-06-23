@@ -21,6 +21,11 @@ contract EtherPriceFeedMock is Ownable, AggregatorV3Interface {
         _currentRoundId = roundId;
     }
 
+    function setRoundAnswer(uint256 roundId, int256 roundAnswer) external onlyOwner {
+        roundAnswers[roundId] = roundAnswer;
+        _currentRoundId = roundId;
+    }
+
     function getRoundData(
         uint80 roundId_
     )

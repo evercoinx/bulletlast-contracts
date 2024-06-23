@@ -13,8 +13,8 @@
         "cover": "rm -rf coverage* && hardhat coverage",
         "gas": "REPORT_GAS=1 hardhat test --typecheck --bail",
         "size": "hardhat size-contracts",
-        "analyze": "slitherin . --slither",
-        "analyze:ci": "slitherin --slither . --skip-clean --ignore-compile",
+        "analyze": "slitherin . --separated",
+        "analyze:ci": "slitherin --separated . --skip-clean --ignore-compile",
         "clean": "hardhat clean && rm -rf coverage/* cache/* crytic-{corpus,export}/* mochaOutput.json testMatrix.json",
         "node": "hardhat node",
         "console": "hardhat console --network localhost"

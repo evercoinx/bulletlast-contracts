@@ -29,8 +29,7 @@ describe("BulletLastPresale", function () {
     const minUSDTAmount = ethers.parseUnits("100", 6); // 100 USDT
     const maxUSDTAmount = ethers.parseUnits("1000", 6); // 1,000 USDT
     const priceFeedRoundAnswers: Array<[bigint, bigint]> = [
-        [1n, 200_000_000_000n], // 1 round => 2,000 ETH/USD
-        [2n, 250_000_000_000n], // 2 round => 2,500 ETH/USD
+        [1n, 250_000_000_000n], // 1 round => 2,500 ETH/USD
     ];
 
     async function deployFixture() {
@@ -1365,6 +1364,29 @@ describe("BulletLastPresale", function () {
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "InsufficientEtherAmount")
                     .withArgs(minEtherAmount, lowEtherAmount);
+            });
+
+            it("Should revert with the right error if getting an unexpected answer from a price feed", async function () {
+                const { bulletLastPresale, etherPriceFeedMock, user } =
+                    await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const latestRoundData = await etherPriceFeedMock.latestRoundData();
+                const roundAnswer = 0n;
+                await etherPriceFeedMock.setRoundAnswer(latestRoundData[0] + 1n, roundAnswer);
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: minEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "UnexpectedPriceFeedAnswer")
+                    .withArgs(roundAnswer);
             });
 
             it.skip("Should revert with the right error if having an insufficient allocated amount", async function () {

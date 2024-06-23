@@ -237,9 +237,9 @@ contract BulletLastPresale is
         if (claimableAmount == 0) {
             revert ZeroClaimableAmount(_msgSender());
         }
-
-        // slither-disable-next-line arbitrary-send-erc20
+        // slither-disable-next-line arbitrary-send-erc20,pess-nft-approve-warning
         saleToken.safeTransferFrom(treasury, _msgSender(), claimableAmount);
+
         emit Claimed(_msgSender(), claimableAmount);
     }
 
@@ -273,8 +273,13 @@ contract BulletLastPresale is
 
     function getLatestEtherPrice() public view returns (uint256) {
         // slither-disable-next-line unused-return
-        (, int256 price, , , ) = etherPriceFeed.latestRoundData();
-        return uint256(price) * 10 ** 10;
+        (, int256 answer, , , ) = etherPriceFeed.latestRoundData();
+        if (answer <= 0) {
+            revert UnexpectedPriceFeedAnswer(answer);
+        }
+
+        // slither-disable-next-line pess-dubious-typecast
+        return uint256(answer) * 10 ** 10;
     }
 
     // slither-disable-next-line costly-loop
@@ -294,6 +299,7 @@ contract BulletLastPresale is
         Vesting[_VESTING_CLIFFS] storage vestings = userVestings[user][activeRoundId];
 
         for (uint256 i = 0; i < _VESTING_CLIFFS; i++) {
+            // slither-disable-next-line pess-dubious-typecast
             uint64 cliff = uint64(i + 1) * vestingDuration;
             uint64 vestingStartTime = startTime + cliff;
 
@@ -305,7 +311,7 @@ contract BulletLastPresale is
         }
 
         uint256 transferAmount = amount - vestingPartialAmount * _VESTING_CLIFFS;
-        // slither-disable-next-line arbitrary-send-erc20
+        // slither-disable-next-line arbitrary-send-erc20,pess-nft-approve-warning
         saleToken.safeTransferFrom(treasury, user, transferAmount);
     }
 

@@ -45,6 +45,8 @@ interface IBulletLastPresale {
 
     error ZeroRoundId();
 
+    error UnexpectedPriceFeedAnswer(int256 answer);
+
     error RoundNotFound();
 
     error InvalidActiveRoundId(uint256 activeRoundId);
