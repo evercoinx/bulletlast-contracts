@@ -47,7 +47,7 @@ interface IBulletLastPresale {
 
     error UnexpectedPriceFeedAnswer(int256 answer);
 
-    error RoundNotFound();
+    error NoActiveRoundFound(uint8 roundId);
 
     error InvalidActiveRoundId(uint256 activeRoundId);
 
@@ -55,15 +55,15 @@ interface IBulletLastPresale {
 
     error RoundAlreadyExists(uint256 roundId);
 
-    error TooLowEtherBuyAmount(uint256 etherAmount, uint256 amount);
-
-    error TooHighEtherBuyAmount(uint256 etherAmount, uint256 amount);
-
     error InsufficientEtherAmount(uint256 expectedAmount, uint256 actualAmount);
 
-    error TooLowUSDTBuyAmount(uint256 usdtAmount, uint256 amount);
+    error TooLowEtherBuyAmount(uint256 minEtherAmount, uint256 etherAmount, uint256 amount);
 
-    error TooHighUSDTBuyAmount(uint256 usdtAmount, uint256 amount);
+    error TooHighEtherBuyAmount(uint256 maxEtherAmount, uint256 etherAmount, uint256 amount);
+
+    error TooLowUSDTBuyAmount(uint256 minUSDTAmount, uint256 usdtAmount, uint256 amount);
+
+    error TooHighUSDTBuyAmount(uint256 maxUSDTAmount, uint256 usdtAmount, uint256 amount);
 
     error InvalidBuyPeriod(uint256 currentTime, uint256 startTime, uint256 endTime);
 
@@ -93,7 +93,12 @@ interface IBulletLastPresale {
 
     function getRoundIdCount() external view returns (uint256);
 
+    function getBuyAmountLimits()
+        external
+        view
+        returns (uint256 minEther, uint256 maxEther, uint256 minUSDT, uint256 maxUSDT);
+
     function getClaimableAmount(address user) external view returns (uint256);
 
-    function getLatestEtherPrice() external view returns (uint256);
+    function getEtherPrice() external view returns (uint256);
 }

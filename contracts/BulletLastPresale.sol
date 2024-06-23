@@ -25,10 +25,9 @@ contract BulletLastPresale is
     bytes32 public constant ROUND_MANAGER_ROLE = keccak256("ROUND_MANAGER_ROLE");
 
     // slither-disable-next-line similar-names
-    uint256 private constant _MIN_ETHER_BUY_AMOUNT = 3 * 10 ** 16;
-    uint256 private constant _MAX_ETHER_BUY_AMOUNT = 30 * 10 ** 16;
     uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** 6;
     uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** 6;
+    uint256 private constant _USDT_BUY_AMOUNT_MULTIPLIER = _MAX_USDT_BUY_AMOUNT / _MIN_USDT_BUY_AMOUNT;
     uint8 private constant _VESTING_CLIFFS = 3;
 
     uint8 public activeRoundId;
@@ -161,7 +160,6 @@ contract BulletLastPresale is
 
         rounds[id] = Round({ startTime: startTime, endTime: endTime, price: price });
         roundIds.push(id);
-
         emit RoundCreated(id, startTime, endTime, price);
     }
 
@@ -172,18 +170,22 @@ contract BulletLastPresale is
             revert InvalidBuyPeriod(block.timestamp, activeRound.startTime, activeRound.endTime);
         }
 
-        uint256 etherAmount = (amount * activeRound.price * 10 ** 14) / getLatestEtherPrice();
-        if (etherAmount < _MIN_ETHER_BUY_AMOUNT) {
-            revert TooLowEtherBuyAmount(etherAmount, amount);
-        }
-        if (etherAmount > _MAX_ETHER_BUY_AMOUNT) {
-            revert TooHighEtherBuyAmount(etherAmount, amount);
-        }
+        uint256 etherPrice = getEtherPrice();
+        uint256 etherAmount = (amount * activeRound.price * 10 ** 14) / etherPrice;
         if (etherAmount > msg.value) {
             revert InsufficientEtherAmount(etherAmount, msg.value);
         }
 
+        (uint256 minEtherBuyAmount, uint256 maxEtherBuyAmount) = _getEtherBuyAmountLimits(etherPrice);
+        if (etherAmount < minEtherBuyAmount) {
+            revert TooLowEtherBuyAmount(minEtherBuyAmount, etherAmount, amount);
+        }
+        if (etherAmount > maxEtherBuyAmount) {
+            revert TooHighEtherBuyAmount(maxEtherBuyAmount, etherAmount, amount);
+        }
+
         _handleUserVesting(_msgSender(), activeRound.startTime, amount);
+        emit BoughtWithEther(_msgSender(), activeRoundId, amount, etherAmount);
 
         _sendEther(treasury, etherAmount);
 
@@ -191,8 +193,6 @@ contract BulletLastPresale is
         if (excessAmount > 0) {
             _sendEther(_msgSender(), excessAmount);
         }
-
-        emit BoughtWithEther(_msgSender(), activeRoundId, amount, etherAmount);
     }
 
     function buyWithUSDT(uint256 amount) external nonReentrant whenNotPaused {
@@ -204,16 +204,16 @@ contract BulletLastPresale is
 
         uint256 usdtAmount = (amount * activeRound.price) / 10 ** 16;
         if (usdtAmount < _MIN_USDT_BUY_AMOUNT) {
-            revert TooLowUSDTBuyAmount(usdtAmount, amount);
+            revert TooLowUSDTBuyAmount(_MIN_USDT_BUY_AMOUNT, usdtAmount, amount);
         }
         if (usdtAmount > _MAX_USDT_BUY_AMOUNT) {
-            revert TooHighUSDTBuyAmount(usdtAmount, amount);
+            revert TooHighUSDTBuyAmount(_MAX_USDT_BUY_AMOUNT, usdtAmount, amount);
         }
 
         _handleUserVesting(_msgSender(), activeRound.startTime, amount);
+        emit BoughtWithUSDT(_msgSender(), activeRoundId, amount, usdtAmount);
 
         usdtToken.safeTransferFrom(_msgSender(), treasury, usdtAmount);
-        emit BoughtWithUSDT(_msgSender(), activeRoundId, amount, usdtAmount);
     }
 
     function claim() external nonReentrant whenNotPaused {
@@ -237,10 +237,10 @@ contract BulletLastPresale is
         if (claimableAmount == 0) {
             revert ZeroClaimableAmount(_msgSender());
         }
+        emit Claimed(_msgSender(), claimableAmount);
+
         // slither-disable-next-line arbitrary-send-erc20,pess-nft-approve-warning
         saleToken.safeTransferFrom(treasury, _msgSender(), claimableAmount);
-
-        emit Claimed(_msgSender(), claimableAmount);
     }
 
     function getActiveRound() external view returns (Round memory) {
@@ -249,6 +249,15 @@ contract BulletLastPresale is
 
     function getRoundIdCount() external view returns (uint256) {
         return roundIds.length;
+    }
+
+    function getBuyAmountLimits()
+        external
+        view
+        returns (uint256 minEther, uint256 maxEther, uint256 minUSDT, uint256 maxUSDT)
+    {
+        (minEther, maxEther) = _getEtherBuyAmountLimits(getEtherPrice());
+        (minUSDT, maxUSDT) = (_MIN_USDT_BUY_AMOUNT, _MAX_USDT_BUY_AMOUNT);
     }
 
     function getClaimableAmount(address user) external view returns (uint256) {
@@ -271,7 +280,7 @@ contract BulletLastPresale is
         return claimableAmount;
     }
 
-    function getLatestEtherPrice() public view returns (uint256) {
+    function getEtherPrice() public view returns (uint256) {
         // slither-disable-next-line unused-return
         (, int256 answer, , , ) = etherPriceFeed.latestRoundData();
         if (answer <= 0) {
@@ -328,8 +337,13 @@ contract BulletLastPresale is
     function _getActiveRound() private view returns (Round storage) {
         Round storage round = rounds[activeRoundId];
         if (round.price == 0) {
-            revert RoundNotFound();
+            revert NoActiveRoundFound(activeRoundId);
         }
         return round;
+    }
+
+    function _getEtherBuyAmountLimits(uint256 etherPrice) private pure returns (uint256 min, uint256 max) {
+        min = ((_MIN_USDT_BUY_AMOUNT * 10 ** 16) / etherPrice) * 10 ** 14;
+        max = min * _USDT_BUY_AMOUNT_MULTIPLIER;
     }
 }

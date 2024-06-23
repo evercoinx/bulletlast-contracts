@@ -12,6 +12,7 @@ import { generateRandomAddress } from "../utils/account";
 
 type Round = [bigint, bigint, bigint];
 type Vesting = [bigint, bigint];
+type BuyAmountLimits = [bigint, bigint, bigint, bigint];
 
 describe("BulletLastPresale", function () {
     const version = ethers.encodeBytes32String("1.0.0");
@@ -28,8 +29,9 @@ describe("BulletLastPresale", function () {
     const maxEtherAmount = ethers.parseEther("0.4"); // 0.0 ETH
     const minUSDTAmount = ethers.parseUnits("100", 6); // 100 USDT
     const maxUSDTAmount = ethers.parseUnits("1000", 6); // 1,000 USDT
+    const feedEtherPrice = ethers.parseUnits("2500", 8); // 2,500 ETH/USD
     const priceFeedRoundAnswers: Array<[bigint, bigint]> = [
-        [1n, 250_000_000_000n], // 1 round => 2,500 ETH/USD
+        [1n, feedEtherPrice], // 1 round
     ];
 
     async function deployFixture() {
@@ -287,11 +289,38 @@ describe("BulletLastPresale", function () {
                 expect(currentTreasuryAddress).to.equal(treasury.address);
             });
 
+            it("Should return no active round", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const promise = bulletLastPresale.getActiveRound();
+                expect(promise)
+                    .to.revertedWithCustomError(bulletLastPresale, "NoActiveRoundFound")
+                    .withArgs(0n);
+            });
+
             it("Should return the right round id count", async function () {
                 const { bulletLastPresale } = await loadFixture(deployFixture);
 
                 const currentRoundIdCount: bigint = await bulletLastPresale.getRoundIdCount();
                 expect(currentRoundIdCount).to.equal(0n);
+            });
+
+            it("Should return the right Ether price", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const currentEtherPrice: bigint = await bulletLastPresale.getEtherPrice();
+                expect(currentEtherPrice).to.equal(feedEtherPrice * 10n ** 10n);
+            });
+
+            it("Should return the right buy amount limits", async function () {
+                const { bulletLastPresale } = await loadFixture(deployFixture);
+
+                const currentBuyAmountLimits: BuyAmountLimits =
+                    await bulletLastPresale.getBuyAmountLimits();
+                expect(currentBuyAmountLimits[0]).to.equal(ethers.parseEther("0.04"));
+                expect(currentBuyAmountLimits[1]).to.equal(ethers.parseEther("0.4"));
+                expect(currentBuyAmountLimits[2]).to.equal(ethers.parseUnits("100", 6));
+                expect(currentBuyAmountLimits[3]).to.equal(ethers.parseUnits("1000", 6));
             });
         });
     });
@@ -1249,7 +1278,7 @@ describe("BulletLastPresale", function () {
                 );
             });
 
-            it("Should revert with the right error if having no round", async function () {
+            it("Should revert with the right error if having no active round", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1262,8 +1291,8 @@ describe("BulletLastPresale", function () {
                     { value: minEtherAmount }
                 );
                 await expect(promise)
-                    .to.be.revertedWithCustomError(bulletLastPresale, "RoundNotFound")
-                    .withArgs();
+                    .to.be.revertedWithCustomError(bulletLastPresale, "NoActiveRoundFound")
+                    .withArgs(0n);
             });
 
             it("Should revert with the right error if not reaching the round start", async function () {
@@ -1304,68 +1333,6 @@ describe("BulletLastPresale", function () {
                     .withArgs(anyValue, startTime, endTime);
             });
 
-            it.skip("Should revert with the right error if buying amount below the minimum", async function () {
-                const { bulletLastPresale, user } = await loadFixture(deployFixture);
-
-                const startTime = BigInt(await time.latest());
-                const endTime = startTime + roundDuration;
-
-                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
-                await bulletLastPresale.setActiveRoundId(roundId);
-
-                const lowSaleTokenAmount = minSaleTokenAmount - 1n;
-                const lowEtherAmount = minEtherAmount - 1n;
-
-                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
-                    lowSaleTokenAmount,
-                    { value: lowEtherAmount }
-                );
-                await expect(promise)
-                    .to.be.revertedWithCustomError(bulletLastPresale, "TooLowEtherBuyAmount")
-                    .withArgs(lowEtherAmount, lowSaleTokenAmount);
-            });
-
-            it("Should revert with the right error if buying amount above the maximum", async function () {
-                const { bulletLastPresale, user } = await loadFixture(deployFixture);
-
-                const startTime = BigInt(await time.latest());
-                const endTime = startTime + roundDuration;
-
-                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
-                await bulletLastPresale.setActiveRoundId(roundId);
-
-                const highSaleTokenAmount = maxSaleTokenAmount * 2n;
-                const highEtherAmount = maxEtherAmount * 2n;
-
-                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
-                    highSaleTokenAmount,
-                    { value: highEtherAmount }
-                );
-                await expect(promise)
-                    .to.be.revertedWithCustomError(bulletLastPresale, "TooHighEtherBuyAmount")
-                    .withArgs(highEtherAmount, highSaleTokenAmount);
-            });
-
-            it("Should revert with the right error if passing insufficient Ether amount", async function () {
-                const { bulletLastPresale, user } = await loadFixture(deployFixture);
-
-                const startTime = BigInt(await time.latest());
-                const endTime = startTime + roundDuration;
-
-                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
-                await bulletLastPresale.setActiveRoundId(roundId);
-
-                const lowEtherAmount = minEtherAmount - 1n;
-
-                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
-                    minSaleTokenAmount,
-                    { value: lowEtherAmount }
-                );
-                await expect(promise)
-                    .to.be.revertedWithCustomError(bulletLastPresale, "InsufficientEtherAmount")
-                    .withArgs(minEtherAmount, lowEtherAmount);
-            });
-
             it("Should revert with the right error if getting an unexpected answer from a price feed", async function () {
                 const { bulletLastPresale, etherPriceFeedMock, user } =
                     await loadFixture(deployFixture);
@@ -1389,7 +1356,73 @@ describe("BulletLastPresale", function () {
                     .withArgs(roundAnswer);
             });
 
-            it.skip("Should revert with the right error if having an insufficient allocated amount", async function () {
+            it("Should revert with the right error if buying with an insufficient Ether amount", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const lowEtherAmount = minEtherAmount - 1n;
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    minSaleTokenAmount,
+                    { value: lowEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "InsufficientEtherAmount")
+                    .withArgs(minEtherAmount, lowEtherAmount);
+            });
+
+            it("Should revert with the right error if buying with a too low Ether amount", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+                const buyAmountLimits: BuyAmountLimits =
+                    await bulletLastPresale.getBuyAmountLimits();
+
+                const lowSaleTokenAmount = minSaleTokenAmount - 1n;
+                const lowEtherAmount = minEtherAmount - 1n;
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    lowSaleTokenAmount,
+                    { value: lowEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "TooLowEtherBuyAmount")
+                    .withArgs(buyAmountLimits[0], lowEtherAmount, lowSaleTokenAmount);
+            });
+
+            it("Should revert with the right error if buying with a too high Ether amount", async function () {
+                const { bulletLastPresale, user } = await loadFixture(deployFixture);
+
+                const startTime = BigInt(await time.latest());
+                const endTime = startTime + roundDuration;
+
+                await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
+                await bulletLastPresale.setActiveRoundId(roundId);
+
+                const highSaleTokenAmount = maxSaleTokenAmount * 2n;
+                const highEtherAmount = maxEtherAmount * 2n;
+                const buyAmountLimits: BuyAmountLimits =
+                    await bulletLastPresale.getBuyAmountLimits();
+
+                const promise = (bulletLastPresale.connect(user) as BulletLastPresale).buyWithEther(
+                    highSaleTokenAmount,
+                    { value: highEtherAmount }
+                );
+                await expect(promise)
+                    .to.be.revertedWithCustomError(bulletLastPresale, "TooHighEtherBuyAmount")
+                    .withArgs(buyAmountLimits[1], highEtherAmount, highSaleTokenAmount);
+            });
+
+            it("Should revert with the right error if having an insufficient allocated amount", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1412,7 +1445,7 @@ describe("BulletLastPresale", function () {
                     .withArgs(minSaleTokenAmount, 0n);
             });
 
-            it.skip("Should revert with the right error if unable to send Ether to the caller", async function () {
+            it("Should revert with the right error if unable to send Ether to the caller", async function () {
                 const { bulletLastPresale, reverter, reverterAddress } =
                     await loadFixture(deployFixture);
 
@@ -1452,7 +1485,7 @@ describe("BulletLastPresale", function () {
                     .withArgs(user.address, roundId, minSaleTokenAmount, minEtherAmount);
             });
 
-            it.skip("Should emit the BoughtWithEther event if buying the maximum amount", async function () {
+            it("Should emit the BoughtWithEther event if buying the maximum amount", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1639,7 +1672,7 @@ describe("BulletLastPresale", function () {
                 );
             });
 
-            it("Should revert with the right error if having no round", async function () {
+            it("Should revert with the right error if having no active round", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1651,8 +1684,8 @@ describe("BulletLastPresale", function () {
                     minSaleTokenAmount
                 );
                 await expect(promise)
-                    .to.be.revertedWithCustomError(bulletLastPresale, "RoundNotFound")
-                    .withArgs();
+                    .to.be.revertedWithCustomError(bulletLastPresale, "NoActiveRoundFound")
+                    .withArgs(0n);
             });
 
             it("Should revert with the right error if not reaching the round start", async function () {
@@ -1691,7 +1724,7 @@ describe("BulletLastPresale", function () {
                     .withArgs(anyValue, startTime, endTime);
             });
 
-            it("Should revert with the right error if buying amount below the minimum", async function () {
+            it("Should revert with the right error if buying with a too low USDT amount", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1699,6 +1732,8 @@ describe("BulletLastPresale", function () {
 
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
+                const buyAmountLimits: BuyAmountLimits =
+                    await bulletLastPresale.getBuyAmountLimits();
 
                 const lowSaleTokenAmount = minSaleTokenAmount - 1n;
                 const lowUSDTAmount = minUSDTAmount - 1n;
@@ -1708,10 +1743,10 @@ describe("BulletLastPresale", function () {
                 );
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "TooLowUSDTBuyAmount")
-                    .withArgs(lowUSDTAmount, lowSaleTokenAmount);
+                    .withArgs(buyAmountLimits[2], lowUSDTAmount, lowSaleTokenAmount);
             });
 
-            it("Should revert with the right error if buying amount above the maximum", async function () {
+            it("Should revert with the right error if buying with a too high USDT amount", async function () {
                 const { bulletLastPresale, user } = await loadFixture(deployFixture);
 
                 const startTime = BigInt(await time.latest());
@@ -1720,6 +1755,8 @@ describe("BulletLastPresale", function () {
                 await bulletLastPresale.createRound(roundId, startTime, endTime, roundPrice);
                 await bulletLastPresale.setActiveRoundId(roundId);
                 await bulletLastPresale.setAllocatedAmount(allocatedSaleTokenAmount + 1n);
+                const buyAmountLimits: BuyAmountLimits =
+                    await bulletLastPresale.getBuyAmountLimits();
 
                 const highSaleTokenAmount = maxSaleTokenAmount * 2n;
                 const highUSDTAmount = maxUSDTAmount * 2n;
@@ -1729,7 +1766,7 @@ describe("BulletLastPresale", function () {
                 );
                 await expect(promise)
                     .to.be.revertedWithCustomError(bulletLastPresale, "TooHighUSDTBuyAmount")
-                    .withArgs(highUSDTAmount, highSaleTokenAmount);
+                    .withArgs(buyAmountLimits[3], highUSDTAmount, highSaleTokenAmount);
             });
         });
 
