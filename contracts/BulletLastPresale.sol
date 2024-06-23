@@ -27,7 +27,6 @@ contract BulletLastPresale is
     // slither-disable-next-line similar-names
     uint256 private constant _MIN_USDT_BUY_AMOUNT = 100 * 10 ** 6;
     uint256 private constant _MAX_USDT_BUY_AMOUNT = 1_000 * 10 ** 6;
-    uint256 private constant _USDT_BUY_AMOUNT_MULTIPLIER = _MAX_USDT_BUY_AMOUNT / _MIN_USDT_BUY_AMOUNT;
     uint8 private constant _VESTING_CLIFFS = 3;
 
     uint8 public activeRoundId;
@@ -343,7 +342,7 @@ contract BulletLastPresale is
     }
 
     function _getEtherBuyAmountLimits(uint256 etherPrice) private pure returns (uint256 min, uint256 max) {
-        min = ((_MIN_USDT_BUY_AMOUNT * 10 ** 16) / etherPrice) * 10 ** 14;
-        max = min * _USDT_BUY_AMOUNT_MULTIPLIER;
+        min = (_MIN_USDT_BUY_AMOUNT * 10 ** 30) / etherPrice;
+        max = (_MAX_USDT_BUY_AMOUNT * 10 ** 30) / etherPrice;
     }
 }
