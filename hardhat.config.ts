@@ -7,6 +7,7 @@ import "@openzeppelin/hardhat-upgrades";
 import "hardhat-contract-sizer";
 import "./tasks/deploy-bullet-last-token-mock";
 import "./tasks/deploy-bullet-last-presale";
+import "./tasks/deploy-implementation";
 import "./tasks/deploy-usdt-token-mock";
 import "./tasks/initialize-bullet-last-presale";
 import "./tasks/upgrade-contract";
